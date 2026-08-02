@@ -8,8 +8,23 @@
 # so it names none; the anchor passes its own resolved inputs to mkOutputs.
 {
   outputs = { self }: {
-    lib.mkOutputs = inputs: {
-      darwinConfigurations."Tildes-MacBook-Pro" = inputs.nix-darwin.lib.darwinSystem {
+    lib.mkOutputs = inputs:
+      let
+        # darwin-rebuild (and pinned deploy, which invokes it attr-less)
+        # resolves darwinConfigurations.$(scutil --get LocalHostName). Nothing
+        # was holding that name steady: macOS rewrites LocalHostName on LAN
+        # name collisions, and a rewrite silently breaks every attr-less
+        # rebuild. Declaring it makes activation converge live state back to
+        # this attr instead. The attr and the declaration must stay equal, so
+        # both come from this one binding -- they cannot drift apart in source.
+        #
+        # The value is the live LocalHostName, verified UNSANDBOXED: under the
+        # Seatbelt sandbox `scutil --get LocalHostName` cannot reach configd
+        # and silently returns "MacBook-Pro", derived from ComputerName, with
+        # no error. mDNS agrees with the real value (tildes-macbook-pro.local).
+        localHostName = "Tildes-MacBook-Pro";
+      in {
+      darwinConfigurations.${localHostName} = inputs.nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";  # change if Intel
         modules = [
           ./modules/lix.nix
@@ -47,6 +62,12 @@
             programs.fish.enable = true;
             environment.shells = [ pkgs.fish ];
           })
+          {
+            # Declared identity. networking.hostName is deliberately left unset:
+            # the DHCP/DNS-derived hostname stays unmanaged.
+            networking.localHostName = localHostName;
+            networking.computerName = "MacBook Pro";
+          }
         ];
       };
       apps = inputs.claude-hardening.apps;
