@@ -48,5 +48,13 @@ defeating the entire pinned ceremony. Install the anchor by copying it:
 
     sudo cp anchor/flake.nix /etc/nix-darwin/flake.nix
 
-once, by hand. Thereafter `pinned deploy` syncs its `rev=` lines from the
-root-owned pins; hand-edit the anchor (via sudo) only to change the input *set*.
+once, by hand, keeping the existing `flake.lock`. The template ships nix-config's
+rev as all zeros, so the bootstrap order is forced and the gate is exercised on
+day one:
+
+    pinned approve ~/Projects/nix-config → pinned deploy
+
+Until that runs, the anchor cannot evaluate — a premature rebuild fails closed
+rather than building whatever rev an author happened to stamp. Thereafter
+`pinned deploy` is the only writer of real revs; hand-edit the anchor (via sudo)
+only to change the input *set*.
