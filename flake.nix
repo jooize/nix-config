@@ -31,6 +31,7 @@
           ./modules/sudowhat.nix
           ./modules/environment.nix
           ./modules/git.nix
+          ./modules/xdg.nix
           ./modules/fish.nix
           ./modules/pinned.nix
           inputs.sudowhat.darwinModules.default

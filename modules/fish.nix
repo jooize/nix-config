@@ -1,7 +1,15 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 let
   user = "jooize";
   perUser = "/etc/profiles/per-user/${user}";
+
+  # XDG relocation vars, shared with xdg.nix (set-environment + launchd).
+  # Rendered here because the shim skips set-environment by design; exported
+  # (-gx) so fish-spawned zsh/bash inherit them too -- their set-environment
+  # is guard-skipped, and ZDOTDIR must survive into child zsh.
+  xdgLines = lib.concatStringsSep "\n    " (
+    lib.mapAttrsToList (n: v: ''set -gx ${n} "${v}"'') (import ./xdg-env-vars.nix)
+  );
 
   # Root-owned constructor of the interactive environment. The fish-shim
   # launches every fish as `fish --no-config --init-command 'source <this>'`:
@@ -33,6 +41,8 @@ let
     set -gx TERMINFO_DIRS ${perUser}/share/terminfo:/run/current-system/sw/share/terminfo:/nix/var/nix/profiles/default/share/terminfo:/usr/share/terminfo
     set -gx XDG_CONFIG_DIRS ${perUser}/etc/xdg:/run/current-system/sw/etc/xdg:/nix/var/nix/profiles/default/etc/xdg
     set -gx XDG_DATA_DIRS ${perUser}/share:/run/current-system/sw/share:/nix/var/nix/profiles/default/share
+
+    ${xdgLines}
 
     # Child zsh/bash source /etc/zshenv and /etc/bashrc, whose set-environment
     # call is guarded by this flag. Setting it keeps children on THIS PATH
