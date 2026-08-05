@@ -29,6 +29,7 @@
         modules = [
           ./modules/lix.nix
           ./modules/sudowhat.nix
+          ./modules/environment.nix
           ./modules/git.nix
           ./modules/fish.nix
           ./modules/pinned.nix
