@@ -19,4 +19,12 @@
 {
   nix.package = pkgs.lix;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
+  # Flakes-only: no nix-channel command or state. This also removes two
+  # user-writable references from generated root-owned output (verified
+  # upstream, modules/nix/default.nix): the set-environment guard that
+  # prepends ~/.nix-defexpr/channels to NIX_PATH whenever that dir exists,
+  # and the on-login initialization that would recreate ~/.nix-defexpr
+  # after the 2026-08-05 home-entry purge.
+  nix.channel.enable = false;
 }
