@@ -30,6 +30,7 @@
           ./modules/lix.nix
           ./modules/sudowhat.nix
           ./modules/git.nix
+          ./modules/fish.nix
           ./modules/pinned.nix
           inputs.sudowhat.darwinModules.default
           inputs.home-manager.darwinModules.home-manager
@@ -59,8 +60,6 @@
             # softnet is AGPL (free). Admit ONLY these two - everything else stays gated.
             nixpkgs.config.allowUnfreePredicate = pkg:
               builtins.elem (lib.getName pkg) [ "tart" "packer" ];
-            programs.fish.enable = true;
-            environment.shells = [ pkgs.fish ];
           })
           {
             # Declared identity. networking.hostName is deliberately left unset:
