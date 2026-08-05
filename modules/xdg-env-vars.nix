@@ -4,14 +4,23 @@
 #                     /etc/bashrc) + launchd.user.envVariables (GUI apps)
 #   - fish.nix     -> rendered into the root-owned fish init (the shim skips
 #                     set-environment by design, so parity lives there)
-# Paths are ABSOLUTE: launchd.user.envVariables does no shell expansion, and
-# the user is fixed on this machine anyway (see fish.nix).
+#
+# Values are $HOME-relative so the machine-global shell surface stays
+# MULTIUSER-correct: set-environment exports these inside double quotes and
+# nix-darwin itself relies on that expansion ($USER in PATH, $HOME in the
+# channels guard -- verified in the deployed store file), and fish expands
+# $HOME inside double quotes the same way. Values reference $HOME only, never
+# each other: set-environment emits exports in attrset order, so a var
+# referencing a sibling could read it before it is set.
+#
+# The one surface that cannot expand -- launchd.user.envVariables -- gets a
+# literal per-user substitution at its call site in xdg.nix, because that
+# surface is per-user by nature (launchctl setenv in the user's context).
 let
-  home = "/Users/jooize";
-  config = "${home}/.config";
-  data = "${home}/.local/share";
-  state = "${home}/.local/state";
-  cache = "${home}/.cache";
+  config = "$HOME/.config";
+  data = "$HOME/.local/share";
+  state = "$HOME/.local/state";
+  cache = "$HOME/.cache";
 in
 {
   XDG_CONFIG_HOME = config;
