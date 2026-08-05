@@ -68,6 +68,10 @@
             # the DHCP/DNS-derived hostname stays unmanaged.
             networking.localHostName = localHostName;
             networking.computerName = "MacBook Pro";
+            # nix-darwin runs all activation as root and requires the target
+            # user for per-user surfaces (launchd.user.envVariables in xdg.nix,
+            # which already binds $HOME to this user) to be named explicitly.
+            system.primaryUser = "jooize";
           }
         ];
       };
