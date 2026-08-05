@@ -40,6 +40,17 @@ let
     set -gx __NIX_DARWIN_SET_ENVIRONMENT_DONE 1
 
     source ${./fish/normalize-pwd-case.fish}
+
+    # Ghostty shell integration (title, path reporting, tab cwd inheritance)
+    # normally loads via an injected XDG_DATA_DIRS entry picked up by vendor
+    # conf.d -- both removed here (--no-config skips vendor conf.d, and this
+    # init sets XDG_DATA_DIRS itself). Source it by its FIXED bundle path:
+    # the bundle is root-owned by ceremony, whereas the injected route
+    # (GHOSTTY_SHELL_INTEGRATION_XDG_DIR) is an attacker-settable env var.
+    if test "$TERM_PROGRAM" = ghostty
+        set -l ghostty_si /Applications/Ghostty.app/Contents/Resources/ghostty/shell-integration/fish/vendor_conf.d/ghostty-shell-integration.fish
+        test -r "$ghostty_si"; and source "$ghostty_si"
+    end
   '';
 
   # Same-name PATH interpose, claude-shim pattern (claude-code-hardening
