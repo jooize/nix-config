@@ -35,6 +35,7 @@
           ./modules/fish.nix
           ./modules/pinned.nix
           ./modules/locked.nix
+          ./modules/sudo.nix
           inputs.sudowhat.darwinModules.default
           inputs.home-manager.darwinModules.home-manager
           inputs.claude-hardening.darwinModules.claude
