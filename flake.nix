@@ -34,10 +34,12 @@
           ./modules/xdg.nix
           ./modules/fish.nix
           ./modules/pinned.nix
+          ./modules/locked.nix
           inputs.sudowhat.darwinModules.default
           inputs.home-manager.darwinModules.home-manager
           inputs.claude-hardening.darwinModules.claude
           inputs.pinned.darwinModules.default
+          inputs.locked.darwinModules.default
           {
             # Packages HM manages (if any) go to the ROOT-OWNED per-user profile
             # (/etc/profiles/per-user/jooize), never ~/.nix-profile - so nothing

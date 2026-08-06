@@ -38,6 +38,10 @@
     pinned = {
       url = "git+file:///Users/jooize/Projects/pinned?ref=refs/heads/main&rev=f61ace9344dc9fa88cd4e4f6ed609a5c890a24ac";
     };
+    # All-zero placeholder, same mechanism as nix-config below: recognized
+    # by deploy's rev grammar, unfetchable until the first `pinned deploy`
+    # syncs the blessed rev in. locked's flake is input-free.
+    locked.url = "git+file:///Users/jooize/Projects/locked?ref=refs/heads/main&rev=0000000000000000000000000000000000000000";
     # The all-zero rev is a deliberate placeholder, not a pin. It matches the
     # rev grammar deploy scans for, so the input is recognized and synced from
     # the root-owned pin before anything evaluates; and it can never be
