@@ -45,4 +45,9 @@ in
   # Apple Terminal per-shell session restore (~/.zsh_sessions,
   # ~/.bash_sessions) -- useless under Ghostty.
   SHELL_SESSIONS_DISABLE = "1";
+
+  # Keep Claude Code off the terminal's alternate screen. A display
+  # preference of this terminal environment, not trust-chain material,
+  # so it lives here rather than in the claude-shim.
+  CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN = "1";
 }
