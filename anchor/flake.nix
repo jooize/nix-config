@@ -16,6 +16,17 @@
 #
 # Never make /etc/nix-darwin a symlink into the user-writable repo -- that
 # would hand the config root builds to anything running as the user.
+#
+# One sibling data file lives beside this one: claude/claude-pin.json, the
+# root-owned Claude version pin (nix-config points claude.pinFile at
+# "${inputs.self}/claude/claude-pin.json", i.e. THIS directory's store copy).
+# It is written only by `sudo claude-pin-write`, via `claude-update-nix`, which
+# PGP-verifies the release and refuses downgrades. Two consequences:
+#   - /etc/nix-darwin must NEVER become a git repo: a git flake sees only
+#     tracked files, so the untracked pin would vanish from the store copy and
+#     eval would throw the bootstrap message.
+#   - a Claude version bump is a root file write + rebuild, not a repo commit,
+#     review round, or rev bump.
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";

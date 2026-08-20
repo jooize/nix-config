@@ -51,7 +51,13 @@
           }
           ({ config, ... }: {
             claude.user = "jooize";
-            claude.pinFile = ./claude/claude-pin.json;
+            # The pin lives beside the ROOT-OWNED anchor, not in this repo:
+            # `inputs.self` is /etc/nix-darwin (the flake actually being
+            # evaluated), so pure eval can read it and nothing running as the
+            # user can write it. Written only by `sudo claude-pin-write` via
+            # `claude-update-nix`, which re-validates shape and refuses
+            # downgrades; a version bump is therefore NOT a commit here.
+            claude.pinFile = "${inputs.self}/claude/claude-pin.json";
             claude.patch.enable = true;
             # The container image and vm guest get the SAME derivation this
             # system installs -- byte-identical to what the sudoers
