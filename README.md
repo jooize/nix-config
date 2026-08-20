@@ -12,8 +12,13 @@ resolved inputs to `lib.mkOutputs`. A user-writable repo never picks its own pin
 
     flake.nix          input-free; exports lib.mkOutputs
     modules/           lix, sudowhat, git, pinned
-    claude/            claude-pin.json (read at eval time)
     anchor/flake.nix   template for the root-owned /etc/nix-darwin/flake.nix
+
+The Claude version pin is NOT here: it is root-owned at
+`/etc/nix-darwin/claude/claude-pin.json`, read at eval via
+`"${inputs.self}/claude/claude-pin.json"` and written only by
+`sudo claude-pin-write` (through `claude-update-nix`). A Claude version bump is
+that root write plus a rebuild -- no commit, review, or rev bump here.
 
 ## Workflow
 
