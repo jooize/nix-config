@@ -36,6 +36,7 @@
           ./modules/pinned.nix
           ./modules/locked.nix
           ./modules/sudo.nix
+          ./modules/one-password.nix
           inputs.sudowhat.darwinModules.default
           inputs.home-manager.darwinModules.home-manager
           inputs.claude-hardening.darwinModules.claude
@@ -68,9 +69,11 @@
             system.stateVersion = 5;
             nixpkgs.hostPlatform = "aarch64-darwin";
             # vm lane (claude-vm) needs tart (unfree FSL) + packer (unfree BUSL);
-            # softnet is AGPL (free). Admit ONLY these two - everything else stays gated.
+            # softnet is AGPL (free). 1password-cli is the op binary (1Password
+            # EULA; modules/one-password.nix). Admit ONLY these by name -
+            # everything else stays gated.
             nixpkgs.config.allowUnfreePredicate = pkg:
-              builtins.elem (lib.getName pkg) [ "tart" "packer" ];
+              builtins.elem (lib.getName pkg) [ "tart" "packer" "1password-cli" ];
           })
           {
             # Declared identity. networking.hostName is deliberately left unset:
