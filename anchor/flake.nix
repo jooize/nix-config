@@ -39,7 +39,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     sudowhat = {
-      url = "git+file:///Users/jooize/Projects/sudowhat?ref=refs/tags/v0.11.0&rev=dd9adf87af58481911fdedb382ebc3fb04c4f047";
+      url = "git+file:///Users/jooize/Projects/sudowhat?ref=refs/heads/main&rev=dd9adf87af58481911fdedb382ebc3fb04c4f047";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     claude-hardening = {
