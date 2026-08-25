@@ -64,6 +64,12 @@
             # system installs -- byte-identical to what the sudoers
             # Digest_Spec commits to (pinned's readOnly package option).
             claude.pinnedPackage = config.security.pinned.package;
+            # Deploy advice claude-update-nix prints after staging a pin
+            # (advisory only, never executed). Declared here rather than
+            # detected at runtime: this flake is the composition point that
+            # KNOWS pinned is the deploy path, and a root-bound suggestion
+            # must not be steered by ambient PATH/config state.
+            claude.rebuildCommand = "pinned deploy";
           })
           ({ pkgs, lib, ... }: {
             system.stateVersion = 5;
