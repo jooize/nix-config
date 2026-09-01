@@ -38,8 +38,13 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Tag-declared, like pinned below: the slot carries a `declare`d release
+    # name, so `pinned deploy` syncs this ref= to that tag after checking the
+    # tag still names the approved rev. Seeding it as refs/heads/main here
+    # would make a fresh anchor install disagree in SHAPE with what deploy
+    # maintains, and a rev-only slot is never routed tag-to-tag again.
     sudowhat = {
-      url = "git+file:///Users/jooize/Projects/sudowhat?ref=refs/heads/main&rev=dd9adf87af58481911fdedb382ebc3fb04c4f047";
+      url = "git+file:///Users/jooize/Projects/sudowhat?ref=refs/tags/v0.16.0&rev=362dbc2fb657d4c7828bb48ef3a7aa11559660ef";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     claude-hardening = {
@@ -47,7 +52,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     pinned = {
-      url = "git+file:///Users/jooize/Projects/pinned?ref=refs/heads/main&rev=f61ace9344dc9fa88cd4e4f6ed609a5c890a24ac";
+      url = "git+file:///Users/jooize/Projects/pinned?ref=refs/tags/v0.7.0&rev=c9689a747645d24690989a47274e96133748f920";
     };
     # All-zero placeholder, same mechanism as nix-config below: recognized
     # by deploy's rev grammar, unfetchable until the first `pinned deploy`
