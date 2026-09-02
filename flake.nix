@@ -59,7 +59,6 @@
             # `claude-update-nix`, which re-validates shape and refuses
             # downgrades; a version bump is therefore NOT a commit here.
             claude.pinFile = "${inputs.self}/claude/claude-pin.json";
-            claude.patch.enable = true;
             # The container image and vm guest get the SAME derivation this
             # system installs -- byte-identical to what the sudoers
             # Digest_Spec commits to (pinned's readOnly package option).
