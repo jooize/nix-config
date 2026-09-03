@@ -56,14 +56,14 @@
             # `inputs.self` is /etc/nix-darwin (the flake actually being
             # evaluated), so pure eval can read it and nothing running as the
             # user can write it. Written only by `sudo claude-update-pin` via
-            # `claude-update-nix`, which re-validates shape and refuses
+            # `claude-update`, which re-validates shape and refuses
             # downgrades; a version bump is therefore NOT a commit here.
             claude.pinFile = "${inputs.self}/claude/claude-pin.json";
             # The container image and vm guest get the SAME derivation this
             # system installs -- byte-identical to what the sudoers
             # Digest_Spec commits to (pinned's readOnly package option).
             claude.pinnedPackage = config.security.pinned.package;
-            # Deploy advice claude-update-nix prints after staging a pin
+            # Deploy advice claude-update prints after staging a pin
             # (advisory only, never executed). Declared here rather than
             # detected at runtime: this flake is the composition point that
             # KNOWS pinned is the deploy path, and a root-bound suggestion

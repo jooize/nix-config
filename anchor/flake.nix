@@ -20,7 +20,7 @@
 # One sibling data file lives beside this one: claude/claude-pin.json, the
 # root-owned Claude version pin (nix-config points claude.pinFile at
 # "${inputs.self}/claude/claude-pin.json", i.e. THIS directory's store copy).
-# It is written only by `sudo claude-update-pin`, via `claude-update-nix`, which
+# It is written only by `sudo claude-update-pin`, via `claude-update`, which
 # PGP-verifies the release and refuses downgrades. Two consequences:
 #   - /etc/nix-darwin must NEVER become a git repo: a git flake sees only
 #     tracked files, so the untracked pin would vanish from the store copy and

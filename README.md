@@ -17,8 +17,9 @@ resolved inputs to `lib.mkOutputs`. A user-writable repo never picks its own pin
 The Claude version pin is NOT here: it is root-owned at
 `/etc/nix-darwin/claude/claude-pin.json`, read at eval via
 `"${inputs.self}/claude/claude-pin.json"` and written only by
-`sudo claude-update-pin` (through `claude-update-nix`). A Claude version bump is
-that root write plus a rebuild -- no commit, review, or rev bump here.
+`sudo claude-update-pin` (through `claude-update`, installed on PATH; a fresh
+machine bootstraps once with `nix run /etc/nix-darwin`). A Claude version bump
+is that root write plus a rebuild -- no commit, review, or rev bump here.
 
 ## Workflow
 
