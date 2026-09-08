@@ -20,6 +20,17 @@
   nix.package = pkgs.lix;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
+  # Build sandbox on (2026-09-08). A non-fixed-output build gets no network
+  # and no filesystem reach beyond its declared inputs; fixed-output
+  # derivations (fetchers) keep network by design. The daemon is not a
+  # security boundary against untrusted users (Lix manual), so this only
+  # narrows what a build you DO run can touch. sandbox-fallback stays off
+  # so a package that cannot build sandboxed fails loudly instead of quietly
+  # building without one. claude-update's builds were checked: its fetches
+  # are fixed-output, its gpgv step needs no network, nothing runs codesign.
+  nix.settings.sandbox = true;
+  nix.settings.sandbox-fallback = false;
+
   # Flakes-only: no nix-channel command or state. This also removes two
   # user-writable references from generated root-owned output (verified
   # upstream, modules/nix/default.nix): the set-environment guard that
