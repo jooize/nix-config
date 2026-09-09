@@ -46,10 +46,11 @@ in
   # claude-shim exports the same value on its own (it skips set-environment).
   GIT_CONFIG_GLOBAL = "${config}/git/config";
 
-  # zsh reads $ZDOTDIR/.z* instead of ~/.z* -- set in root-owned /etc/zshenv
-  # (and the fish init for fish-spawned zsh), so attacker-created ~/.zshrc
-  # et al. are dead code. The rc itself is HM-managed (xdg.nix).
-  ZDOTDIR = "${config}/zsh";
+  # zsh reads $ZDOTDIR/.z* instead of ~/.z*. The value is a root-owned
+  # directory under /etc (xdg.nix), never one under $HOME, and /etc/zshenv
+  # exports it unconditionally as well (xdg.nix explains why); this copy is
+  # for the launchd and fish surfaces so every chain agrees.
+  ZDOTDIR = "/etc/zdotdir";
 
   # Apple Terminal per-shell session restore (~/.zsh_sessions,
   # ~/.bash_sessions) -- useless under Ghostty.

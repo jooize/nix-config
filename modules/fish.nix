@@ -11,6 +11,38 @@ let
     lib.mapAttrsToList (n: v: ''set -gx ${n} "${v}"'') (import ./xdg-env-vars.nix)
   );
 
+  # fish's default theme, verbatim from share/fish/themes/default.theme
+  # (fish 4.7.1), one `set -g` per line. Palette names only, so the
+  # terminal theme decides what each colour looks like on its background.
+  themeLines = lib.concatStringsSep "\n    " (map (l: "set -g ${l}") [
+    "fish_color_normal --reset"
+    "fish_color_autosuggestion brblack"
+    "fish_color_cancel -r"
+    "fish_color_command --reset"
+    "fish_color_comment red"
+    "fish_color_cwd green"
+    "fish_color_cwd_root red"
+    "fish_color_end green"
+    "fish_color_error brred"
+    "fish_color_escape brcyan"
+    "fish_color_history_current --bold"
+    "fish_color_host --reset"
+    "fish_color_host_remote yellow"
+    "fish_color_operator brcyan"
+    "fish_color_param cyan"
+    "fish_color_quote yellow"
+    "fish_color_redirection cyan --bold"
+    "fish_color_search_match white --background=brblack --bold"
+    "fish_color_selection white --background=brblack --bold"
+    "fish_color_status red"
+    "fish_color_user brgreen"
+    "fish_color_valid_path --underline"
+    "fish_pager_color_description yellow --italics"
+    "fish_pager_color_prefix --bold --underline"
+    "fish_pager_color_progress brwhite --background=cyan --bold"
+    "fish_pager_color_selected_background -r"
+  ]);
+
   # Root-owned constructor of the interactive environment. The fish-shim
   # launches every fish as `fish --no-config --init-command 'source <this>'`:
   # under --no-config fish reads NO user-writable startup surface (config.fish,
@@ -43,6 +75,13 @@ let
     set -gx XDG_DATA_DIRS ${perUser}/share:/run/current-system/sw/share:/nix/var/nix/profiles/default/share
 
     ${xdgLines}
+
+    # Colours. --no-config skips universal variables, which is where fish
+    # keeps its theme, so prompt and highlighting came up plain. These are
+    # the values of fish's shipped default theme (share/fish/themes/
+    # default.theme, fish 4.7.1), set as globals here. Not `fish_config theme
+    # choose`: that looks under ~/.config/fish/themes before the store.
+    ${themeLines}
 
     # Child zsh/bash source /etc/zshenv and /etc/bashrc, whose set-environment
     # call is guarded by this flag. Setting it keeps children on THIS PATH

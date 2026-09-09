@@ -18,15 +18,24 @@ in
   # apps like Hammerspoon see the same XDG world as the shells.
   launchd.user.envVariables = literal;
 
-  # The one zsh user rc, declarative at $ZDOTDIR/.zshrc (read-only store
-  # symlink). zsh's compdump already defaults to $ZDOTDIR/.zcompdump, so only
-  # history needs pointing at XDG state. The state dir is created by the
-  # migration script (zsh does not mkdir HISTFILE parents).
-  home-manager.users.jooize = {
-    xdg.configFile."zsh/.zshrc".text = ''
-      HISTFILE="$HOME/.local/state/zsh/history"
-      HISTSIZE=10000
-      SAVEHIST=10000
-    '';
-  };
+  # zsh startup is root-owned end to end. ZDOTDIR is exported here
+  # UNCONDITIONALLY from /etc/zshenv (programs.zsh.shellInit renders outside
+  # the __NIX_DARWIN_SET_ENVIRONMENT_DONE guard), because the guarded
+  # set-environment path can be skipped by anything that pre-sets the guard
+  # variable and ZDOTDIR in the inherited environment -- `launchctl setenv`
+  # from any process running as the user reaches every GUI-launched shell.
+  # zsh reads /etc/zshenv before any user file and only `-f` skips it. The
+  # directory itself is /etc/zdotdir (root-owned via environment.etc), not
+  # ~/.config/zsh: a store symlink inside a user-owned directory can be
+  # replaced by the same user process. zsh's compdump would default to
+  # $ZDOTDIR/.zcompdump, which is unwritable there; the rc never runs
+  # compinit, so nothing tries.
+  programs.zsh.shellInit = ''
+    export ZDOTDIR=/etc/zdotdir
+  '';
+  environment.etc."zdotdir/.zshrc".text = ''
+    HISTFILE="$HOME/.local/state/zsh/history"
+    HISTSIZE=10000
+    SAVEHIST=10000
+  '';
 }
