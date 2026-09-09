@@ -90,15 +90,43 @@ let
 
     source ${./fish/normalize-pwd-case.fish}
 
-    # Ghostty shell integration (title, path reporting, tab cwd inheritance)
-    # normally loads via an injected XDG_DATA_DIRS entry picked up by vendor
-    # conf.d -- both removed here (--no-config skips vendor conf.d, and this
-    # init sets XDG_DATA_DIRS itself). Source it by its FIXED bundle path:
-    # the bundle is root-owned by ceremony, whereas the injected route
-    # (GHOSTTY_SHELL_INTEGRATION_XDG_DIR) is an attacker-settable env var.
+    # Ghostty shell integration (title, path reporting, prompt marks, tab cwd
+    # inheritance) normally loads via an injected XDG_DATA_DIRS entry picked
+    # up by vendor conf.d -- both removed here (--no-config skips vendor
+    # conf.d, and this init sets XDG_DATA_DIRS itself). Source it by its FIXED
+    # bundle path, never via GHOSTTY_RESOURCES_DIR or
+    # GHOSTTY_SHELL_INTEGRATION_XDG_DIR: any user process can plant those
+    # (launchctl setenv) to point at a writable file.
+    #
+    # The path is trusted only if every component is root-owned and none is
+    # a symlink. /Applications is admin-writable, so a user process could
+    # rename the bundle away and plant a replacement under the same name; it
+    # cannot make that replacement root-owned, and a symlink into some
+    # root-owned tree elsewhere (the nix store) is refused outright. A skip
+    # is reported, not silent: the integration's own setup function erases
+    # itself after the first prompt, so its absence is otherwise invisible.
+    # /usr/bin/stat by absolute path: a GNU stat on PATH reads -f as
+    # "filesystem". No -L, so a symlink reports itself.
     if test "$TERM_PROGRAM" = ghostty
         set -l ghostty_si /Applications/Ghostty.app/Contents/Resources/ghostty/shell-integration/fish/vendor_conf.d/ghostty-shell-integration.fish
-        test -r "$ghostty_si"; and source "$ghostty_si"
+        set -l node ""
+        set -l reason ""
+        for c in (string split / -- (string sub -s 2 -- $ghostty_si))
+            set node "$node/$c"
+            if test -L "$node"
+                set reason "$node is a symlink"
+            else if not test -e "$node"
+                set reason "$node is missing"
+            else if test "$(/usr/bin/stat -f %u "$node" 2>/dev/null)" != 0
+                set reason "$node is not root-owned"
+            end
+            test -n "$reason"; and break
+        end
+        if test -z "$reason"
+            source "$ghostty_si"
+        else
+            echo "fish-init: Ghostty shell integration skipped: $reason" >&2
+        end
     end
   '';
 
