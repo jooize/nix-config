@@ -6,7 +6,10 @@
   # gh as a SYSTEM package -> /run/current-system/sw/bin: root-owned, on PATH,
   # pinned to flake.lock, gcroot-protected. Not user-writable, so no
   # write-to-execute surface (the whole point vs a ~/.nix-profile bin).
-  environment.systemPackages = [ pkgs.gh ];
+  # gitleaks is load-bearing, not convenience: claude-init's generated
+  # .githooks/pre-commit scans the staged changes with it and REFUSES the commit
+  # when it cannot be found (fail closed).
+  environment.systemPackages = [ pkgs.gh pkgs.gitleaks ];
 
   # git config, declarative via home-manager. The generated ~/.config/git/config
   # is a read-only symlink into the store - config, never on PATH, never executed.
