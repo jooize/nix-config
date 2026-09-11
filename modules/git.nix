@@ -37,6 +37,8 @@
         ".claude-plans/"
         # **/ needed: the internal slash would otherwise anchor this to the repo root
         "**/.claude/settings.local.json"
+        # subagent memory with `memory: local` (the project scope is meant to be committed)
+        "**/.claude/agent-memory-local/"
       ];
       # HM master unified user/email/raw config under `settings`
       # (was userName / userEmail / extraConfig). settings maps 1:1 to git config.
