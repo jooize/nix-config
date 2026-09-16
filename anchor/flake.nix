@@ -4,7 +4,7 @@
 # input, which is deliberately input-free and cannot pin itself.
 #
 # The `rev=` lines are trust decisions. They are synced from the root-owned
-# pins under /var/db/pinned by `pinned deploy` -- NEVER hand-edit a rev. Edit
+# pins under /var/db/pinned by `pinnix deploy` -- NEVER hand-edit a rev. Edit
 # this file (via sudo) only to change the input SET.
 #
 # Install once, by hand, keeping the existing /etc/nix-darwin/flake.lock:
@@ -39,7 +39,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     # Tag-declared, like pinned below: the slot carries a `declare`d release
-    # name, so `pinned deploy` syncs this ref= to that tag after checking the
+    # name, so `pinnix deploy` syncs this ref= to that tag after checking the
     # tag still names the approved rev. Seeding it as refs/heads/main here
     # would make a fresh anchor install disagree in SHAPE with what deploy
     # maintains, and a rev-only slot is never routed tag-to-tag again.
@@ -54,8 +54,13 @@
     pinned = {
       url = "git+file:///Users/jooize/Projects/pinned?ref=refs/tags/v0.7.0&rev=c9689a747645d24690989a47274e96133748f920";
     };
+    # The Nix consumer of pinned's record (deploy, upgrade, add). Tag-declared
+    # like pinned; the all-zero rev is the placeholder deploy syncs.
+    pinnix = {
+      url = "git+file:///Users/jooize/Projects/pinnix?ref=refs/tags/v0.1.0&rev=0000000000000000000000000000000000000000";
+    };
     # All-zero placeholder, same mechanism as nix-config below: recognized
-    # by deploy's rev grammar, unfetchable until the first `pinned deploy`
+    # by deploy's rev grammar, unfetchable until the first `pinnix deploy`
     # syncs the blessed rev in. locked's flake is input-free.
     locked.url = "git+file:///Users/jooize/Projects/locked?ref=refs/heads/main&rev=0000000000000000000000000000000000000000";
     # The all-zero rev is a deliberate placeholder, not a pin. It matches the
@@ -63,7 +68,7 @@
     # the root-owned pin before anything evaluates; and it can never be
     # fetched, so a bare darwin-rebuild between installing this anchor and the
     # first deploy fails closed instead of building an author-chosen tree. Run
-    # `pinned approve ~/Projects/nix-config` then `pinned deploy` to fill it.
+    # `pinned review ~/Projects/nix-config` then `pinnix deploy` to fill it.
     nix-config.url = "git+file:///Users/jooize/Projects/nix-config?ref=refs/heads/main&rev=0000000000000000000000000000000000000000";
   };
   outputs = inputs: inputs.nix-config.lib.mkOutputs inputs;

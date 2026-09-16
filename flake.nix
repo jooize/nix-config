@@ -4,13 +4,13 @@
 # rev-pinned git+file input. This flake is deliberately INPUT-FREE: every input
 # -- and every rev pin, each of which is a trust decision -- is declared by the
 # root-owned anchor and synced from the root-owned /var/db/pinned slots by
-# `pinned deploy`. A user-writable repo must never get to choose its own pins,
+# `pinnix deploy`. A user-writable repo must never get to choose its own pins,
 # so it names none; the anchor passes its own resolved inputs to mkOutputs.
 {
   outputs = { self }: {
     lib.mkOutputs = inputs:
       let
-        # darwin-rebuild (and pinned deploy, which invokes it attr-less)
+        # darwin-rebuild (and pinnix deploy, which invokes it attr-less)
         # resolves darwinConfigurations.$(scutil --get LocalHostName). Nothing
         # was holding that name steady: macOS rewrites LocalHostName on LAN
         # name collisions, and a rewrite silently breaks every attr-less
@@ -34,6 +34,7 @@
           ./modules/xdg.nix
           ./modules/fish.nix
           ./modules/pinned.nix
+          ./modules/pinnix.nix
           ./modules/locked.nix
           ./modules/sudo.nix
           ./modules/one-password.nix
@@ -41,6 +42,7 @@
           inputs.home-manager.darwinModules.home-manager
           inputs.claude-hardening.darwinModules.claude
           inputs.pinned.darwinModules.default
+          inputs.pinnix.darwinModules.default
           inputs.locked.darwinModules.default
           {
             # Packages HM manages (if any) go to the ROOT-OWNED per-user profile
@@ -66,9 +68,9 @@
             # Deploy advice claude-update prints after staging a pin
             # (advisory only, never executed). Declared here rather than
             # detected at runtime: this flake is the composition point that
-            # KNOWS pinned is the deploy path, and a root-bound suggestion
+            # KNOWS pinnix is the deploy path, and a root-bound suggestion
             # must not be steered by ambient PATH/config state.
-            claude.rebuildCommand = "pinned deploy";
+            claude.rebuildCommand = "pinnix deploy";
           })
           ({ pkgs, lib, ... }: {
             system.stateVersion = 5;
