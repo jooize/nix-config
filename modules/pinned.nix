@@ -9,7 +9,6 @@
     # matches, so this is a no-op takeover, not a recreation.
     gids = {
       "_jooize-pinned" = 401;
-      "_pinned-clones" = 402;
     };
   };
 }
