@@ -25,9 +25,9 @@ is that root write plus a rebuild -- no commit, review, or rev bump here.
 
 Daily path — the rebuild is gated, not run by hand:
 
-    edit → commit → pinned approve ~/Projects/nix-config → pinned deploy
+    edit → commit → sudo pinned review ~/Projects/nix-config → pinnix deploy
 
-`pinned upgrade` does approve + deploy for every stale input in one elevation.
+`pinnix upgrade` does review + deploy for every stale input in one elevation.
 
 For a dry run before committing, point a scratch anchor at this working rev and
 `darwin-rebuild build --flake <scratch-anchor>`. That is a debugging aid, not the
@@ -36,7 +36,7 @@ daily path — it builds without going through the pin ceremony.
 ## Identity invariant
 
 `darwinConfigurations.<attr>` must equal `networking.localHostName`. Both
-`darwin-rebuild` and `pinned deploy` (which invokes it attr-less) resolve the
+`darwin-rebuild` and `pinnix deploy` (which invokes it attr-less) resolve the
 configuration via `scutil --get LocalHostName`, so an attr that does not match
 live state makes an attr-less rebuild fail outright. The config declares both
 `localHostName` and `computerName`, so activation converges drift — macOS
@@ -58,9 +58,9 @@ once, by hand, keeping the existing `flake.lock`. The template ships nix-config'
 rev as all zeros, so the bootstrap order is forced and the gate is exercised on
 day one:
 
-    pinned approve ~/Projects/nix-config → pinned deploy
+    sudo pinned review ~/Projects/nix-config → pinnix deploy
 
 Until that runs, the anchor cannot evaluate — a premature rebuild fails closed
 rather than building whatever rev an author happened to stamp. Thereafter
-`pinned deploy` is the only writer of real revs; hand-edit the anchor (via sudo)
+`pinnix deploy` is the only writer of real revs; hand-edit the anchor (via sudo)
 only to change the input *set*.
