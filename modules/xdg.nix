@@ -37,5 +37,9 @@ in
     HISTFILE="$HOME/.local/state/zsh/history"
     HISTSIZE=10000
     SAVEHIST=10000
+
+    # direnv: an .envrc loads only when pinned approved it (claude-hardening's
+    # direnv-trust module); replaces `direnv hook zsh`.
+    ${config.direnvTrust.zshInit}
   '';
 }

@@ -42,6 +42,7 @@
           inputs.home-manager.darwinModules.home-manager
           inputs.claude-hardening.darwinModules.claude
           inputs.claude-hardening.darwinModules.git-trust
+          inputs.claude-hardening.darwinModules.direnv-trust
           inputs.pinned.darwinModules.default
           inputs.pinnix.darwinModules.default
           inputs.locked.darwinModules.default
@@ -76,6 +77,9 @@
             # PATH; the hook dispatcher bakes pinned by store path, like the shim.
             gitTrust.user = "jooize";
             gitTrust.pinnedPackage = config.security.pinned.package;
+            # direnv trust: the gate the fish and zsh inits install runs
+            # `pinned verify` on the nearest .envrc, by the same store path.
+            direnvTrust.pinnedPackage = config.security.pinned.package;
           })
           ({ pkgs, lib, ... }: {
             system.stateVersion = 5;

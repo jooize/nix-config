@@ -100,6 +100,10 @@ let
 
     source ${./fish/normalize-pwd-case.fish}
 
+    # direnv: an .envrc loads only when pinned approved it (claude-hardening's
+    # direnv-trust module); replaces `direnv hook fish`.
+    ${config.direnvTrust.fishInit}
+
     # Ghostty shell integration (title, path reporting, prompt marks, tab cwd
     # inheritance) normally loads via an injected XDG_DATA_DIRS entry picked
     # up by vendor conf.d -- both removed here (--no-config skips vendor
