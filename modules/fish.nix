@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 let
   user = "jooize";
   perUser = "/etc/profiles/per-user/${user}";
@@ -9,6 +9,15 @@ let
   # is guard-skipped, and ZDOTDIR must survive into child zsh.
   xdgLines = lib.concatStringsSep "\n    " (
     lib.mapAttrsToList (n: v: ''set -gx ${n} "${v}"'') (import ./xdg-env-vars.nix)
+  );
+
+  # The git environment from claude-hardening's git-trust module (GIT_CONFIG_GLOBAL
+  # and the pins in GIT_CONFIG_PARAMETERS), for git reached past the shim.
+  # Single-quoted: the pins hold $ and ' that must reach git literally; inside
+  # fish single quotes only \\ and \' are escapes.
+  fishSq = v: "'" + lib.replaceStrings [ "\\" "'" ] [ "\\\\" "\\'" ] v + "'";
+  gitLines = lib.concatStringsSep "\n    " (
+    lib.mapAttrsToList (n: v: "set -gx ${n} ${fishSq v}") config.gitTrust.env
   );
 
   # fish's default theme, verbatim from share/fish/themes/default.theme
@@ -75,6 +84,7 @@ let
     set -gx XDG_DATA_DIRS ${perUser}/share:/run/current-system/sw/share:/nix/var/nix/profiles/default/share
 
     ${xdgLines}
+    ${gitLines}
 
     # Colours. --no-config skips universal variables, which is where fish
     # keeps its theme, so prompt and highlighting came up plain. These are

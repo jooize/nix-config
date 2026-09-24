@@ -41,6 +41,7 @@
           inputs.sudowhat.darwinModules.default
           inputs.home-manager.darwinModules.home-manager
           inputs.claude-hardening.darwinModules.claude
+          inputs.claude-hardening.darwinModules.git-trust
           inputs.pinned.darwinModules.default
           inputs.pinnix.darwinModules.default
           inputs.locked.darwinModules.default
@@ -71,6 +72,10 @@
             # KNOWS pinnix is the deploy path, and a root-bound suggestion
             # must not be steered by ambient PATH/config state.
             claude.rebuildCommand = "pinnix deploy";
+            # git trust: the shim lands in this user's per-user profile, first on
+            # PATH; the hook dispatcher bakes pinned by store path, like the shim.
+            gitTrust.user = "jooize";
+            gitTrust.pinnedPackage = config.security.pinned.package;
           })
           ({ pkgs, lib, ... }: {
             system.stateVersion = 5;

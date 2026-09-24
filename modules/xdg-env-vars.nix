@@ -37,15 +37,6 @@ in
   DOCKER_CONFIG = "${config}/docker";
   NPM_CONFIG_CACHE = "${cache}/npm";
 
-  # git reads ONLY this file as its global config when the var is set, and
-  # skips both ~/.gitconfig and the XDG default lookup. Any process running as
-  # the user can create ~/.gitconfig, and without the var git reads it AFTER
-  # the XDG file, so a planted one would override diff drivers, aliases and
-  # credential helpers. The pointed-at file stays user-writable under the
-  # threat model; trust decisions keep using scrubbed git invocations. The
-  # claude-shim exports the same value on its own (it skips set-environment).
-  GIT_CONFIG_GLOBAL = "${config}/git/config";
-
   # zsh reads $ZDOTDIR/.z* instead of ~/.z*. The value is a root-owned
   # directory under /etc (xdg.nix), never one under $HOME, and /etc/zshenv
   # exports it unconditionally as well (xdg.nix explains why); this copy is
