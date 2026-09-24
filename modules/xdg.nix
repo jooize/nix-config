@@ -43,6 +43,13 @@ in
     HISTSIZE=10000
     SAVEHIST=10000
 
+    # Completions from root-owned dirs only (the profiles' site-functions, then
+    # zsh's own). -D: no dump file. compinit sources its dump, and the default
+    # one ($ZDOTDIR/.zcompdump, or anywhere under $HOME) would be a file any
+    # process as the user could write. Costs about 0.3 s per shell start.
+    fpath=(/etc/profiles/per-user/jooize/share/zsh/site-functions /run/current-system/sw/share/zsh/site-functions $fpath)
+    autoload -Uz compinit && compinit -D
+
     # direnv: an .envrc loads only when pinned approved it (claude-hardening's
     # direnv-trust module); replaces `direnv hook zsh`.
     ${config.direnvTrust.zshInit}

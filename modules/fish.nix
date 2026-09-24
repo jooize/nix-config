@@ -100,6 +100,12 @@ let
 
     source ${./fish/normalize-pwd-case.fish}
 
+    # Completions. --no-config leaves fish_complete_path empty, so nothing
+    # installed by a package completed. Root-owned dirs only: the profiles'
+    # vendor dirs and fish's own. Never ~/.config/fish/completions or the
+    # generated_completions cache, which any process as the user can write.
+    set -g fish_complete_path ${perUser}/share/fish/vendor_completions.d /run/current-system/sw/share/fish/vendor_completions.d $__fish_data_dir/completions
+
     # direnv: an .envrc loads only when pinned approved it (claude-hardening's
     # direnv-trust module); replaces `direnv hook fish`.
     ${config.direnvTrust.fishInit}
