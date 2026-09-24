@@ -151,12 +151,52 @@ let
   # puts ahead of the system profile's real fish, so every `fish` this user
   # resolves goes through here. Ghostty's command points at
   # ${perUser}/bin/fish explicitly.
-  fishShimScript = pkgs.writeShellScript "fish-shim" ''
-    exec ${pkgs.fish}/bin/fish --no-config --init-command 'source ${fishInit}' "$@"
+  #
+  # A compiled program, not a shell script: a bash shim would itself obey
+  # BASH_ENV and the rest of bash-startup-vars.nix before its first line, in
+  # every terminal. It drops those names from the environment, then execs fish.
+  bashVars = import ./bash-startup-vars.nix;
+  cStr = s: "\"" + lib.replaceStrings [ "\\" "\"" ] [ "\\\\" "\\\"" ] s + "\"";
+  fishShimBin = pkgs.writeCBin "fish-shim" ''
+    #include <stdio.h>
+    #include <string.h>
+    #include <unistd.h>
+
+    extern char **environ;
+
+    static const char *names[] = { ${lib.concatMapStringsSep ", " (n: cStr "${n}=") bashVars.names}, 0 };
+    static const char *prefixes[] = { ${lib.concatMapStringsSep ", " cStr bashVars.prefixes}, 0 };
+
+    static int dropped(const char *e) {
+      for (const char **n = names; *n; n++)
+        if (strncmp(e, *n, strlen(*n)) == 0) return 1;
+      for (const char **p = prefixes; *p; p++)
+        if (strncmp(e, *p, strlen(*p)) == 0) return 1;
+      return 0;
+    }
+
+    int main(int argc, char **argv) {
+      char **w = environ;
+      for (char **r = environ; *r; r++)
+        if (!dropped(*r)) *w++ = *r;
+      *w = 0;
+
+      char *args[argc + 4];
+      int n = 0;
+      args[n++] = ${cStr "${pkgs.fish}/bin/fish"};
+      args[n++] = "--no-config";
+      args[n++] = "--init-command";
+      args[n++] = ${cStr "source ${fishInit}"};
+      for (int i = 1; i < argc; i++) args[n++] = argv[i];
+      args[n] = 0;
+      execv(args[0], args);
+      perror("fish-shim: exec fish");
+      return 127;
+    }
   '';
   fishShim = pkgs.runCommand "fish-shim" { } ''
     mkdir -p $out/bin
-    install -m755 ${fishShimScript} $out/bin/fish-shim
+    install -m755 ${fishShimBin}/bin/fish-shim $out/bin/fish-shim
     ln -s fish-shim $out/bin/fish
   '';
 in

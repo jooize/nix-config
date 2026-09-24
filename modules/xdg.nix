@@ -30,8 +30,13 @@ in
   # replaced by the same user process. zsh's compdump would default to
   # $ZDOTDIR/.zcompdump, which is unwritable there; the rc never runs
   # compinit, so nothing tries.
+  #
+  # The same file drops the names in bash-startup-vars.nix, so no bash started
+  # below this shell obeys them. zsh itself already drops BASH_FUNC_* entries
+  # (not valid names to it), so only the plain names need unsetting.
   programs.zsh.shellInit = ''
     export ZDOTDIR=/etc/zdotdir
+    unset ${lib.concatStringsSep " " (import ./bash-startup-vars.nix).names}
   '';
   environment.etc."zdotdir/.zshrc".text = ''
     HISTFILE="$HOME/.local/state/zsh/history"
