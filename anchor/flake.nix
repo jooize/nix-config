@@ -34,10 +34,6 @@
       url = "github:nix-darwin/nix-darwin/master";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    home-manager = {
-      url = "github:nix-community/home-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     # Tag-declared, like pinned below: the slot carries a `declare`d release
     # name, so `pinnix deploy` syncs this ref= to that tag after checking the
     # tag still names the approved rev. Seeding it as refs/heads/main here

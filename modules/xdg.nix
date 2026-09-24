@@ -8,6 +8,8 @@ let
   literal = lib.mapAttrs (_: v: lib.replaceStrings [ "$HOME" ] [ home ] v) vars;
 in
 {
+  users.users.jooize.home = "/Users/jooize";
+
   # zsh/bash entry points: set-environment baked into root-owned /etc/zshenv
   # and /etc/bashrc; $HOME expands per-user at source time. ZDOTDIR lands in
   # /etc/zshenv, which zsh reads BEFORE any user file, so the ~/.z* lookup

@@ -39,21 +39,12 @@
           ./modules/sudo.nix
           ./modules/one-password.nix
           inputs.sudowhat.darwinModules.default
-          inputs.home-manager.darwinModules.home-manager
           inputs.claude-hardening.darwinModules.claude
           inputs.claude-hardening.darwinModules.git-trust
           inputs.claude-hardening.darwinModules.direnv-trust
           inputs.pinned.darwinModules.default
           inputs.pinnix.darwinModules.default
           inputs.locked.darwinModules.default
-          {
-            # Packages HM manages (if any) go to the ROOT-OWNED per-user profile
-            # (/etc/profiles/per-user/jooize), never ~/.nix-profile - so nothing
-            # user-writable ever lands on PATH. This is the security fix.
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.backupFileExtension = "bak";  # lets HM take over ~/.config/git/config
-          }
           ({ config, ... }: {
             claude.user = "jooize";
             # The pin lives beside the ROOT-OWNED anchor, not in this repo:

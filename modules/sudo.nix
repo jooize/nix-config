@@ -9,7 +9,7 @@
   # by bare name inherits it. secure_path makes root's PATH a constant.
   #
   # The per-user profile is included on purpose: it is ROOT-OWNED
-  # (home-manager useUserPackages), so `sudo <hm-tool>` keeps working
+  # (nix-darwin users.users.<name>.packages), so `sudo <profile-tool>` keeps working
   # without weakening anything. /usr/local/bin is deliberately absent
   # (the classic chown-to-user target); absolute paths still work.
   #
