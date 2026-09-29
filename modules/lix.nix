@@ -17,7 +17,18 @@
 { pkgs, ... }:
 
 {
-  nix.package = pkgs.lix;
+  # Patched (2026-09-30): macOS 27 refuses to load Lix's build sandbox
+  # profile, so every sandboxed build failed with "invalid errno value #45".
+  # The one rule using an errno clause, a file-write-mode deny on the build
+  # directory, is removed; the owner/flags/xattr/mount denies stay. Cost: a
+  # build can now change its own build directory's mode, e.g. open it to
+  # other local users while it runs, which a hostile build can already
+  # approximate through the shared /tmp. Unfixed upstream as of Lix 2.95.3
+  # and main. `patches` fails the build loudly if a Lix update moves or
+  # rewrites the rule: then check upstream and drop this override.
+  nix.package = pkgs.lix.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [ ./lix/sandbox-no-enotsup.patch ];
+  });
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   # Build sandbox on (2026-09-08). A non-fixed-output build gets no network

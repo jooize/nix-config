@@ -1,0 +1,23 @@
+--- a/lix/libstore/build/sandbox-defaults.sb
++++ b/lix/libstore/build/sandbox-defaults.sb
+@@ -30,15 +30,11 @@
+ (deny file-write-owner file-write-flags file-write-xattr file-write-mount
+       file-write-unmount
+       (literal (param "_NIX_BUILD_TOP")))
+-; Nixpkgs does `chmod -R` on `$NIX_BUILD_TOP/$sourceRoot` by default,
+-; which results in it trying to set the mode of `$NIX_BUILD_TOP` when
+-; derivations set `sourceRoot = ".";`. Thankfully, the GNU `chmod(1)`
+-; treats `ENOTSUP` as a non‐fatal, non‐reported error in this case, and
+-; continues to descend into the directory tree.
+-;
+-; See: <https://gitweb.git.savannah.gnu.org/gitweb/?p=coreutils.git;a=blob;f=src/chmod.c;hb=refs/tags/v9.7#l312>
+-(deny file-write-mode (with errno ENOTSUP)
+-      (literal (param "_NIX_BUILD_TOP")))
++; The file-write-mode deny on the build directory is removed (local patch):
++; it needs `(with errno ENOTSUP)` so that GNU chmod -R skips the directory
++; quietly, and macOS 27 refuses to load a profile with that errno (only
++; EPERM, EACCES, ENOENT, ESRCH, ENOSYS, EAUTH, ENOATTR, ENOTCAPABLE). A
++; plain deny (EPERM) would fail every build with sourceRoot = ".".
+ 
+ ; Access to /tmp and the build directory.
+ ; The network-outbound/network-inbound ones are for unix domain sockets, which
