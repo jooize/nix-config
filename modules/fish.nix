@@ -148,6 +148,13 @@ let
             echo "fish-init: Ghostty shell integration skipped: $reason" >&2
         end
     end
+
+    # Offer to resume the Claude session this Ghostty surface held when a
+    # Ghostty quit or a restart cut it off. claude-continue (claude-hardening)
+    # reads its per-surface record as data and asks before anything runs.
+    if status is-interactive; and set -q GHOSTTY_SURFACE_ID; and test -x ${perUser}/bin/claude-continue
+        ${perUser}/bin/claude-continue --restore
+    end
   '';
 
   # Same-name PATH interpose, claude-shim pattern (claude-code-hardening
