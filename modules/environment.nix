@@ -1,4 +1,16 @@
-{ lib, ... }:
+{ lib, pkgs, ... }:
+let
+  # The first of nvim, vim, vi on PATH, looked up each time it runs, so
+  # installing or removing nvim needs no change here. PATH is the caller's:
+  # the root-owned profile dirs in the shells, secure_path under sudo.
+  editor = pkgs.writeShellScript "editor" ''
+    for e in nvim vim vi; do
+      if command -v "$e" >/dev/null 2>&1; then exec "$e" "$@"; fi
+    done
+    echo "editor: none of nvim, vim, vi is on PATH" >&2
+    exit 127
+  '';
+in
 {
   # The intended nix-darwin knob for the PATH (and NIX_PROFILES, XDG_*_DIRS,
   # TERMINFO_DIRS) that set-environment bakes into root-owned /etc/zshenv and
@@ -20,10 +32,10 @@
   # bash, and fish.nix renders these same values. Tools that open an editor
   # read them -- locked edit (SUDO_EDITOR, then VISUAL, then EDITOR, as sudo
   # passes them through) and git (core.editor is pinned to
-  # ${VISUAL:-${EDITOR:-vi}}). A bare name, so PATH (secure_path under
-  # sudo) resolves it, to the system's /usr/bin/vim today.
+  # ${VISUAL:-${EDITOR:-vi}}). A store path, so finding the wrapper itself
+  # never depends on PATH.
   environment.variables = {
-    EDITOR = "vim";
-    VISUAL = "vim";
+    EDITOR = "${editor}";
+    VISUAL = "${editor}";
   };
 }
