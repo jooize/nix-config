@@ -155,6 +155,10 @@ let
     if status is-interactive; and set -q GHOSTTY_SURFACE_ID; and test -x ${perUser}/bin/claude-continue
         ${perUser}/bin/claude-continue --restore
     end
+
+    # The same for programs listed in tab-restore.nix (WeeChat): note one
+    # while it runs, offer it again after a Ghostty quit or a restart.
+    ${config.tabRestore.fishInit}
   '';
 
   # Same-name PATH interpose, claude-shim pattern (claude-code-hardening

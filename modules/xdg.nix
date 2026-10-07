@@ -62,5 +62,9 @@ in
     if [[ -n $GHOSTTY_SURFACE_ID && -x /etc/profiles/per-user/jooize/bin/claude-continue ]]; then
       /etc/profiles/per-user/jooize/bin/claude-continue --restore
     fi
+
+    # The same for programs listed in tab-restore.nix (WeeChat): note one
+    # while it runs, offer it again after a Ghostty quit or a restart.
+    ${config.tabRestore.zshInit}
   '';
 }
