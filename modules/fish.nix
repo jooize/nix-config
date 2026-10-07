@@ -107,6 +107,20 @@ let
     # generated_completions cache, which any process as the user can write.
     set -g fish_complete_path ${perUser}/share/fish/vendor_completions.d /run/current-system/sw/share/fish/vendor_completions.d $__fish_data_dir/completions
 
+    # Repaint the prompt when the window changes size. Ghostty erases the
+    # prompt on a resize (fish marks it with OSC 133 and sends no redraw=0),
+    # trusting the shell to draw it again. fish does that from
+    # __fish_winch_handler, which only the shipped config.fish defines
+    # (__fish_config_interactive), so under --no-config the prompt stayed
+    # blank until the first key -- seen on tabs restored in the background,
+    # which get their real size when first shown. Same handler as fish
+    # 4.7.1's, minus the fish_handle_reflow switch (on for Ghostty).
+    if status is-interactive
+        function __fish_winch_handler --on-signal WINCH -d "Repaint screen when window changes size"
+            commandline -f repaint >/dev/null 2>/dev/null
+        end
+    end
+
     # direnv: an .envrc loads only when pinned approved it (claude-hardening's
     # direnv-trust module); replaces `direnv hook fish`.
     ${config.direnvTrust.fishInit}
