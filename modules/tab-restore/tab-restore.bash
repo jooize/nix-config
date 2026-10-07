@@ -9,9 +9,10 @@
 #
 # The root-owned shell startup (fish init, /etc/zdotdir/.zshrc) calls `note`
 # before a command whose first word is a listed program, and `clear` once that
-# command returns. A Ghostty quit kills the shell before `clear` runs, so a
-# record survives only when the program was cut off. Quitting the program
-# yourself clears it, and the next shell asks nothing.
+# command returns. `clear` keeps the record when the terminal is gone (see
+# have_terminal), so a record survives only when a Ghostty quit or a restart
+# cut the program off. Quitting the program yourself clears it, and the next
+# shell asks nothing.
 #
 # One record per surface, keyed by GHOSTTY_SURFACE_ID (Ghostty patch
 # surface-id; Ghostty saves the id with the window state, so a restored
@@ -74,8 +75,24 @@ note() {
   fail "cannot write $record"
 }
 
+# Whether this process still has its terminal. Closing a tab or split, or
+# quitting Ghostty, hangs up the terminal: Ghostty signals the tab's process
+# group (src/termio/Exec.zig killPid), its session leader exits, and the
+# kernel takes the terminal away from everything left in the session. Only
+# then does a program in the foreground get the hangup, so by the time it
+# returns, /dev/tty can no longer be opened. The exit status can't tell the
+# two apart: WeeChat answers a hangup with /quit and exits 0 (measured
+# 2026-10-07).
+have_terminal() {
+  { : </dev/tty; } 2>/dev/null
+}
+
+# Remove the record only when the program returned with the terminal still
+# there, so the user ended it. After a hangup the record stays for the next
+# shell in this tab or split.
 clear_record() {
   need_surface
+  have_terminal || return 0
   rm -f -- "$record" || fail "cannot remove $record"
 }
 
@@ -111,10 +128,10 @@ restore() {
     case "$answer" in
       ''|y|yes)
         # The record stays while the program runs, so a second Ghostty quit
-        # offers it again; a return of any kind clears it.
+        # offers it again; a return with the terminal still there clears it.
         rc=0
         "$path" || rc=$?
-        rm -f -- "$record"
+        have_terminal && rm -f -- "$record"
         exit "$rc"
         ;;
       n|no)
