@@ -253,7 +253,9 @@ start_by_hand() {
 restore() {
   [[ "$surface" =~ $uuid_re && -f "$record" ]] || exit 0
   if ! read_note; then
-    rm -f -- "$record"                      # not a valid note: drop it
+    rm -f -- "$record"
+    printf '%stab-restore: dropped a note it could not read (%s)%s\n' \
+      "$C_DIM" "$record" "$C_OFF" >&2
     exit 0
   fi
   [[ -t 0 && -t 2 ]] || exit 0              # off-tty there is nobody to ask
@@ -278,7 +280,11 @@ restore() {
   local answer
   while :; do
     if ! IFS= read -r answer; then
-      answer=n                                # end of input declines
+      # End of input is no answer: a Ghostty quit or a restart while the
+      # gate waits hangs up the terminal, and the read can return before the
+      # hangup signal ends this process. Keep the note, like l, so the next
+      # shell in this tab asks again.
+      answer=l
     fi
     case "$answer" in
       y|yes) start ;;
