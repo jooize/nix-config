@@ -15,4 +15,15 @@
     "/run/current-system/sw"
     "/nix/var/nix/profiles/default"
   ];
+
+  # The editor every shell exports: set-environment carries it into zsh and
+  # bash, and fish.nix renders these same values. Tools that open an editor
+  # read them -- locked edit (SUDO_EDITOR, then VISUAL, then EDITOR, as sudo
+  # passes them through) and git (core.editor is pinned to
+  # ${VISUAL:-${EDITOR:-vi}}). A bare name, so PATH (secure_path under
+  # sudo) resolves it, to the system's /usr/bin/vim today.
+  environment.variables = {
+    EDITOR = "vim";
+    VISUAL = "vim";
+  };
 }

@@ -73,8 +73,9 @@ let
     # Parity with nix-darwin's set-environment, minus every ~/.nix-profile
     # entry (and minus the ~/.nix-defexpr/channels NIX_PATH prepend -- also
     # user-writable, and unused with flakes).
-    set -gx EDITOR nano
-    set -gx PAGER "less -R"
+    set -gx EDITOR ${fishSq config.environment.variables.EDITOR}
+    set -gx VISUAL ${fishSq config.environment.variables.VISUAL}
+    set -gx PAGER ${fishSq config.environment.variables.PAGER}
     set -gx NIX_SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt
     set -gx NIX_PATH "nixpkgs=flake:nixpkgs:/nix/var/nix/profiles/per-user/root/channels"
     set -gx NIX_USER_PROFILE_DIR /nix/var/nix/profiles/per-user/${user}
