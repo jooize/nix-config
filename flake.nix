@@ -39,6 +39,7 @@
           ./modules/sudo.nix
           ./modules/one-password.nix
           ./modules/ghostty.nix
+          ./modules/weechat.nix
           inputs.sudowhat.darwinModules.default
           inputs.claude-hardening.darwinModules.claude
           inputs.claude-hardening.darwinModules.git-trust
