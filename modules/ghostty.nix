@@ -2,12 +2,12 @@
 let
   user = "jooize";
 
-  # The release this Mac runs, from jooize/Ghostty's releases. Before
+  # The release this Mac runs, from jooize/ghostty's releases. Before
   # pinning a new one, check that CI built it from the commit you reviewed,
   # and that both hashes agree with the release's SHA256SUMS:
   #
-  #   gh attestation verify Ghostty.app.zip -R jooize/Ghostty \
-  #     --signer-workflow jooize/Ghostty/.github/workflows/build.yml \
+  #   gh attestation verify Ghostty.app.zip -R jooize/ghostty \
+  #     --signer-workflow jooize/ghostty/.github/workflows/build.yml \
   #     --source-ref refs/tags/v<version> --source-digest <commit> \
   #     --deny-self-hosted-runners
   #
@@ -19,7 +19,7 @@ let
     manifestHash = "sha256-QijVknRcYWd7MyaSUHqGOLaE1wnqBF/MJ+i7nClKHI8=";
   };
   releaseFile = name: hash: pkgs.fetchurl {
-    url = "https://github.com/jooize/Ghostty/releases/download/v${lib.escapeURL release.version}/${name}";
+    url = "https://github.com/jooize/ghostty/releases/download/v${lib.escapeURL release.version}/${name}";
     inherit hash;
   };
 
@@ -113,8 +113,8 @@ in
     )
   '';
 
-  # The system configuration file of our patched Ghostty (jooize/Ghostty,
-  # branch hardening, patches system-config and protected-config). It is
+  # The system configuration file of our patched Ghostty (jooize/ghostty,
+  # branch jooize, patches system-config and protected-config). It is
   # read before anything else and only if every path component is
   # root-owned and not writable by group or others; the store symlink chain
   # passes. Vanilla Ghostty never reads this path, so the file is inert

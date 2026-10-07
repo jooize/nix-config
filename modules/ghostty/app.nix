@@ -1,4 +1,4 @@
-# The patched Ghostty app (jooize/Ghostty, branch hardening) exactly as its
+# The patched Ghostty app (jooize/ghostty, branch jooize) exactly as its
 # release job published it: built and signed ad hoc in CI, attested there,
 # and pinned here by hash. Nothing is rebuilt; the zip is unpacked as is.
 #
