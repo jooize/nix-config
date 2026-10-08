@@ -254,7 +254,7 @@ restore() {
   [[ "$surface" =~ $uuid_re && -f "$record" ]] || exit 0
   if ! read_note; then
     rm -f -- "$record"
-    printf '%stab-restore: dropped a note it could not read (%s)%s\n' \
+    printf '%stab-restore: dropped an unreadable note (%s)%s\n' \
       "$C_DIM" "$record" "$C_OFF" >&2
     exit 0
   fi
@@ -276,7 +276,7 @@ restore() {
   gate=$(printf '\n%srun the lines above? [%sy%s%s/%sN%s%s]%s%s · %sl%s%s ask later · %sa%s%s always%s' \
     "$C_B" "$C_KEY" "$C_OFF" "$C_B" "$C_KEY" "$C_OFF" "$C_B" "$C_OFF" \
     "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_OFF")
-  printf '%s\n' "$gate" >&2
+  printf '%s ' "$gate" >&2
   local answer
   while :; do
     if ! IFS= read -r answer; then
@@ -284,6 +284,7 @@ restore() {
       # gate waits hangs up the terminal, and the read can return before the
       # hangup signal ends this process. Keep the note, like l, so the next
       # shell in this tab asks again.
+      printf '\n' >&2    # the cursor waits on the gate line
       answer=l
     fi
     case "$answer" in
@@ -304,7 +305,7 @@ restore() {
         printf '%snot approved; the lines above did not run%s\n' "$C_ATTN" "$C_OFF" >&2
         ;;
       *)
-        printf '%snot an answer%s\n' "$C_ATTN" "$C_OFF" >&2
+        printf '%snot an answer%s ' "$C_ATTN" "$C_OFF" >&2
         ;;
     esac
   done
