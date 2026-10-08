@@ -273,10 +273,10 @@ restore() {
   printf '%s%s was running in this tab when Ghostty closed.%s\n\n' "$C_DIM" "$name" "$C_OFF" >&2
   show_command
   local gate
-  gate=$(printf '\n%srun the lines above? [%sy%s%s/%sN%s%s]%s%s · %sl%s%s ask later · %sa%s%s always%s' \
+  printf -v gate '%srun the lines above? [%sy%s%s/%sN%s%s]%s%s · %sl%s%s ask later · %sa%s%s always%s ' \
     "$C_B" "$C_KEY" "$C_OFF" "$C_B" "$C_KEY" "$C_OFF" "$C_B" "$C_OFF" \
-    "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_OFF")
-  printf '%s ' "$gate" >&2
+    "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_OFF"
+  printf '\n%s' "$gate" >&2
   local answer
   while :; do
     if ! IFS= read -r answer; then
@@ -302,10 +302,13 @@ restore() {
         if sudo -- "$0" approve "${words[@]}"; then
           start
         fi
-        printf '%snot approved; the lines above did not run%s\n' "$C_ATTN" "$C_OFF" >&2
+        # Back to the same gate, printed again so the answer has its keys.
+        printf '%snot approved; the lines above did not run%s\n%s' "$C_ATTN" "$C_OFF" "$gate" >&2
         ;;
       *)
-        printf '%snot an answer%s ' "$C_ATTN" "$C_OFF" >&2
+        # The gate line follows again, without its blank line, so the next
+        # answer is typed beside its keys.
+        printf '%snot an answer%s\n%s' "$C_ATTN" "$C_OFF" "$gate" >&2
         ;;
     esac
   done
