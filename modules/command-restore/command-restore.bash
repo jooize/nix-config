@@ -9,8 +9,10 @@
 #   command-restore note <word>...     note the command that starts now (shell hook)
 #   command-restore clear              forget it: the command returned (shell hook)
 #   command-restore list               list your approved commands, both lists
-#   sudo command-restore approve <word>...  approve a command to start on its own
-#   sudo command-restore revoke <word>...   take an approval back
+#   sudo command-restore approve <folder> <word>...
+#                                      approve a command in a folder to start on its own
+#   sudo command-restore revoke <folder> <word>...
+#                                      take an approval back
 #
 # The root-owned shell startup (fish init, /etc/zdotdir/.zshrc) calls `note`
 # before every command made only of plain words, and `clear` once it returns.
@@ -29,8 +31,11 @@
 # never noted.
 #
 # Approvals are root-owned, because a list the user can write would approve
-# anything for any process running as the user. Each user has two lists, one
-# line of words each, and a line in either one counts:
+# anything for any process running as the user. Each user has two lists, and
+# a line in either one counts. A line is the folder, a tab, then the words:
+# an approval covers both lines the prompt shows, so a note cannot pick
+# another folder for an approved command. The folder may hold any character
+# but a control character (tab and newline included).
 #   /var/db/command-restore/approved/<user>  written by `sudo command-restore approve`
 #   /etc/command-restore/approved/<user>     declared: nix-config installs it from
 #                                            modules/command-restore/approved/<user>
@@ -51,8 +56,10 @@ Usage:
   command-restore note <word>...     note the command that starts now (shell hook)
   command-restore clear              forget it: the command returned (shell hook)
   command-restore list               list your approved commands, both lists
-  sudo command-restore approve <word>...  approve a command to start on its own
-  sudo command-restore revoke <word>...   take an approval back
+  sudo command-restore approve <folder> <word>...
+                                     approve a command in a folder to start on its own
+  sudo command-restore revoke <folder> <word>...
+                                     take an approval back
 EOF
 }
 
@@ -158,8 +165,25 @@ in_list() {
   [[ -f "$1" ]] && grep -qxF -- "$2" "$1"
 }
 
+# Build the approval line for a folder and words into `line`: the folder, a
+# tab, the words. Fails on a relative folder, a control character in it, or
+# words that are not plain.
+approval_line() {
+  local LC_ALL=C folder=$1; shift
+  [[ "$folder" == /* && ! "$folder" =~ [[:cntrl:]] ]] || return 1
+  plain_words "$@" || return 1
+  line="$folder"$'\t'"$*"
+}
+
+# An approval line as a person reads it: the words, then the folder.
+shown() {
+  printf '%s  %sin%s %s' "${1#*$'\t'}" "$C_DIM" "$C_OFF" "${1%%$'\t'*}"
+}
+
 is_approved() {
-  in_list "$approved_file" "${words[*]}" || in_list "$declared_file" "${words[*]}"
+  local line
+  approval_line "$cwd" "${words[@]}" || return 1
+  in_list "$approved_file" "$line" || in_list "$declared_file" "$line"
 }
 
 if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then
@@ -223,10 +247,10 @@ clear_record() {
 # Root side of `a`: sudo shows the command line before it authenticates.
 approve() {
   sudo_user approve
-  plain_words "$@" || fail "not plain words: nothing approved"
-  local line="$*" tmp
+  local line tmp
+  approval_line "$@" || fail "needs an absolute folder, then plain words: nothing approved"
   if in_list "$approved_file" "$line" || in_list "$declared_file" "$line"; then
-    printf '%salready approved:%s %s\n' "$C_DIM" "$C_OFF" "$line" >&2
+    printf '%salready approved:%s %s\n' "$C_DIM" "$C_OFF" "$(shown "$line")" >&2
     return 0
   fi
   # One level at a time, so each folder gets 755 whatever umask sudo passed on.
@@ -237,7 +261,7 @@ approve() {
   tmp=$(mktemp "$approved_dir/.${approved_file##*/}.XXXXXX") || fail "cannot write in $approved_dir"
   if { [[ -f "$approved_file" ]] && cat -- "$approved_file"; printf '%s\n' "$line"; } >"$tmp" \
      && chmod 644 -- "$tmp" && mv -f -- "$tmp" "$approved_file"; then
-    printf '✓ approved: %s\n' "$line" >&2
+    printf '✓ approved: %s\n' "$(shown "$line")" >&2
     return 0
   fi
   rm -f -- "$tmp"
@@ -246,17 +270,17 @@ approve() {
 
 revoke() {
   sudo_user revoke
-  plain_words "$@" || fail "not plain words"
-  local line="$*" tmp
+  local line tmp
+  approval_line "$@" || fail "needs an absolute folder, then plain words"
   if ! in_list "$approved_file" "$line"; then
     in_list "$declared_file" "$line" \
       && fail "declared in $declared_file: remove it from nix-config, then deploy"
-    fail "not approved: $line"
+    fail "not approved: $(shown "$line")"
   fi
   tmp=$(mktemp "$approved_dir/.${approved_file##*/}.XXXXXX") || fail "cannot write in $approved_dir"
   if { grep -vxF -- "$line" "$approved_file" || true; } >"$tmp" \
      && chmod 644 -- "$tmp" && mv -f -- "$tmp" "$approved_file"; then
-    printf '✓ revoked: %s\n' "$line" >&2
+    printf '✓ revoked: %s\n' "$(shown "$line")" >&2
     in_list "$declared_file" "$line" \
       && printf '%sstill approved: %s declares it%s\n' "$C_ATTN" "$declared_file" "$C_OFF" >&2
     return 0
@@ -265,17 +289,27 @@ revoke() {
   fail "cannot write $approved_file"
 }
 
-# Each list under its path, the lines on stdout and the labels on stderr, so
-# `command-restore list >file` keeps only the lines.
+# Each list under its path, one approval per line as a person reads it. The
+# files themselves are the format to copy; this is only the view.
 list_approved() {
-  local f
+  local f line n
+  [[ -t 1 ]] || local C_DIM='' C_ATTN='' C_OFF=''
   for f in "$approved_file" "$declared_file"; do
-    printf '%s%s%s\n' "$C_DIM" "$f" "$C_OFF" >&2
-    if [[ -s "$f" ]]; then
-      cat -- "$f"
-    else
-      printf '%snothing approved%s\n' "$C_DIM" "$C_OFF" >&2
+    printf '%s%s%s\n' "$C_DIM" "$f" "$C_OFF"
+    n=0
+    if [[ -f "$f" ]]; then
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -n "$line" ]] || continue
+        n=$((n + 1))
+        if [[ "$line" == *$'\t'* ]]; then
+          printf '  %s\n' "$(shown "$line")"
+        else
+          printf '  %s  %s(no folder: never matches)%s\n' \
+            "$(LC_ALL=C tr -d '[:cntrl:]' <<<"$line")" "$C_ATTN" "$C_OFF"
+        fi
+      done <"$f"
     fi
+    (( n > 0 )) || printf '  %snothing approved%s\n' "$C_DIM" "$C_OFF"
   done
 }
 
@@ -338,7 +372,7 @@ restore() {
         exit 0
         ;;
       a)
-        if sudo -- "$0" approve "${words[@]}"; then
+        if sudo -- "$0" approve "$cwd" "${words[@]}"; then
           start
         fi
         # Back to the same gate, printed again so the answer has its keys.
