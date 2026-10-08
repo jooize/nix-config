@@ -32,15 +32,20 @@ in
 
   config = {
     # `command-restore` on PATH starts the noted command by hand and lists or
-    # changes the approvals (root-owned, /var/db/command-restore/approved).
+    # changes your approvals (root-owned, /var/db/command-restore/approved/<user>).
     environment.systemPackages = [ commandRestore ];
 
-    # Declared approvals, read beside the runtime list. Same format, so
-    # bootstrapping is `cp /var/db/command-restore/approved` to this folder.
-    # Absent file, no /etc entry.
-    environment.etc = lib.optionalAttrs (builtins.pathExists ./command-restore/approved) {
-      "command-restore/approved".source = ./command-restore/approved;
-    };
+    # Declared approvals, one file per user, read beside that user's runtime
+    # list. Same format, so bootstrapping is
+    # `cp /var/db/command-restore/approved/<user> command-restore/approved/`.
+    # No folder or no file, no /etc entry.
+    environment.etc = lib.mapAttrs'
+      (user: _: lib.nameValuePair "command-restore/approved/${user}" {
+        source = ./command-restore/approved + "/${user}";
+      })
+      (lib.filterAttrs (_: type: type == "regular")
+        (lib.optionalAttrs (builtins.pathExists ./command-restore/approved)
+          (builtins.readDir ./command-restore/approved)));
 
     # Note each command while it runs in a Ghostty tab or split, so the next
     # shell there can start it again when a Ghostty quit or a restart cut it

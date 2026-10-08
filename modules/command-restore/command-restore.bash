@@ -5,10 +5,10 @@
 # Usage:
 #   command-restore                    start the command noted for this tab or split
 #   command-restore --restore          at shell start: start an approved command,
-#                                  ask about any other
+#                                      ask about any other
 #   command-restore note <word>...     note the command that starts now (shell hook)
 #   command-restore clear              forget it: the command returned (shell hook)
-#   command-restore approved           list the approved commands, both lists
+#   command-restore list               list your approved commands, both lists
 #   sudo command-restore approve <word>...  approve a command to start on its own
 #   sudo command-restore revoke <word>...   take an approval back
 #
@@ -29,11 +29,11 @@
 # never noted.
 #
 # Approvals are root-owned, because a list the user can write would approve
-# anything for any process running as the user. Two lists, one line of words
-# each, and a line in either one counts:
-#   /var/db/command-restore/approved  written by `sudo command-restore approve`
-#   /etc/command-restore/approved     declared: nix-config installs it from
-#                                     modules/command-restore/approved
+# anything for any process running as the user. Each user has two lists, one
+# line of words each, and a line in either one counts:
+#   /var/db/command-restore/approved/<user>  written by `sudo command-restore approve`
+#   /etc/command-restore/approved/<user>     declared: nix-config installs it from
+#                                            modules/command-restore/approved/<user>
 # Both use the same format, so moving the runtime list into Nix is a plain
 # copy of the file. An approved command starts on its own, but only
 # when its program resolves to a root-owned path; every other command asks,
@@ -47,10 +47,10 @@ usage() {
 Usage:
   command-restore                    start the command noted for this tab or split
   command-restore --restore          at shell start: start an approved command,
-                                 ask about any other
+                                     ask about any other
   command-restore note <word>...     note the command that starts now (shell hook)
   command-restore clear              forget it: the command returned (shell hook)
-  command-restore approved           list the approved commands, both lists
+  command-restore list               list your approved commands, both lists
   sudo command-restore approve <word>...  approve a command to start on its own
   sudo command-restore revoke <word>...   take an approval back
 EOF
@@ -58,9 +58,8 @@ EOF
 
 uuid_re='^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'
 word_re='^[A-Za-z0-9_./=:,@+%-]+$'
-approved_dir=/var/db/command-restore
-approved_file=$approved_dir/approved
-declared_file=/etc/command-restore/approved
+approved_dir=/var/db/command-restore/approved
+declared_dir=/etc/command-restore/approved
 
 # Commands with a restore of their own, or that would restart this one.
 skip_names=(claude claude-continue command-restore)
@@ -137,6 +136,23 @@ read_note() {
   plain_words "${words[@]}"
 }
 
+# Point approved_file and declared_file at one user's lists: the account
+# running this, or under sudo the account that ran sudo (sudo sets SUDO_USER
+# itself, so the caller cannot choose it).
+lists_for() {
+  [[ "$1" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]] || fail "not a user name: $1"
+  approved_file=$approved_dir/$1
+  declared_file=$declared_dir/$1
+}
+
+# The user that ran sudo, for the root-side subcommands.
+sudo_user() {
+  (( EUID == 0 )) || fail "$1 writes a root-owned list: run it with sudo"
+  [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != root ]] \
+    || fail "$1 names the user by sudo: run sudo command-restore $1 from that account"
+  lists_for "$SUDO_USER"
+}
+
 # Whether a list holds this exact line.
 in_list() {
   [[ -f "$1" ]] && grep -qxF -- "$2" "$1"
@@ -206,15 +222,19 @@ clear_record() {
 
 # Root side of `a`: sudo shows the command line before it authenticates.
 approve() {
-  (( EUID == 0 )) || fail "approve writes a root-owned list: run it with sudo"
+  sudo_user approve
   plain_words "$@" || fail "not plain words: nothing approved"
   local line="$*" tmp
   if in_list "$approved_file" "$line" || in_list "$declared_file" "$line"; then
     printf '%salready approved:%s %s\n' "$C_DIM" "$C_OFF" "$line" >&2
     return 0
   fi
-  [[ -d "$approved_dir" ]] || mkdir -m 755 -- "$approved_dir" || fail "cannot create $approved_dir"
-  tmp=$(mktemp "$approved_dir/.approved.XXXXXX") || fail "cannot write in $approved_dir"
+  # One level at a time, so each folder gets 755 whatever umask sudo passed on.
+  local d
+  for d in "${approved_dir%/*}" "$approved_dir"; do
+    [[ -d "$d" ]] || mkdir -m 755 -- "$d" || fail "cannot create $d"
+  done
+  tmp=$(mktemp "$approved_dir/.${approved_file##*/}.XXXXXX") || fail "cannot write in $approved_dir"
   if { [[ -f "$approved_file" ]] && cat -- "$approved_file"; printf '%s\n' "$line"; } >"$tmp" \
      && chmod 644 -- "$tmp" && mv -f -- "$tmp" "$approved_file"; then
     printf '✓ approved: %s\n' "$line" >&2
@@ -225,7 +245,7 @@ approve() {
 }
 
 revoke() {
-  (( EUID == 0 )) || fail "revoke writes a root-owned list: run it with sudo"
+  sudo_user revoke
   plain_words "$@" || fail "not plain words"
   local line="$*" tmp
   if ! in_list "$approved_file" "$line"; then
@@ -233,7 +253,7 @@ revoke() {
       && fail "declared in $declared_file: remove it from nix-config, then deploy"
     fail "not approved: $line"
   fi
-  tmp=$(mktemp "$approved_dir/.approved.XXXXXX") || fail "cannot write in $approved_dir"
+  tmp=$(mktemp "$approved_dir/.${approved_file##*/}.XXXXXX") || fail "cannot write in $approved_dir"
   if { grep -vxF -- "$line" "$approved_file" || true; } >"$tmp" \
      && chmod 644 -- "$tmp" && mv -f -- "$tmp" "$approved_file"; then
     printf '✓ revoked: %s\n' "$line" >&2
@@ -246,7 +266,7 @@ revoke() {
 }
 
 # Each list under its path, the lines on stdout and the labels on stderr, so
-# `command-restore approved >file` keeps only the lines.
+# `command-restore list >file` keeps only the lines.
 list_approved() {
   local f
   for f in "$approved_file" "$declared_file"; do
@@ -333,6 +353,9 @@ restore() {
   done
 }
 
+me=$(/usr/bin/id -un) || fail "cannot tell which user this is"
+lists_for "$me"
+
 case "${1:-}" in
   '') start_by_hand ;;
   --restore) [[ $# -eq 1 ]] || { usage >&2; exit 1; }; restore ;;
@@ -340,7 +363,7 @@ case "${1:-}" in
   clear) [[ $# -eq 1 ]] || { usage >&2; exit 1; }; clear_record ;;
   approve) shift; approve "$@" ;;
   revoke) shift; revoke "$@" ;;
-  approved) list_approved ;;
+  list) list_approved ;;
   -h|--help) usage ;;
   *) usage >&2; exit 1 ;;
 esac
