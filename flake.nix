@@ -66,7 +66,7 @@
             # detected at runtime: this flake is the composition point that
             # KNOWS pinnix is the deploy path, and a root-bound suggestion
             # must not be steered by ambient PATH/config state.
-            claude.rebuildCommand = [ "pinnix" "deploy" ];
+            claude.rebuildCommand = "pinnix deploy";
             # git trust: the shim lands in this user's per-user profile, first on
             # PATH; the hook dispatcher bakes pinned by store path, like the shim.
             gitTrust.user = "jooize";
