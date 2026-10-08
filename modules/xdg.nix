@@ -63,8 +63,8 @@ in
       /etc/profiles/per-user/jooize/bin/claude-continue --restore
     fi
 
-    # The same for programs listed in tab-restore.nix (WeeChat): note one
+    # Any other command (WeeChat, say), by command-restore.nix: note it
     # while it runs, offer it again after a Ghostty quit or a restart.
-    ${config.tabRestore.zshInit}
+    ${config.commandRestore.zshInit}
   '';
 }

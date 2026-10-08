@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# tab-restore: start a command again in the Ghostty tab or split where a
+# command-restore: start a command again in the Ghostty tab or split where a
 # Ghostty quit or a restart cut it off.
 #
 # Usage:
-#   tab-restore                    start the command noted for this tab or split
-#   tab-restore --restore          at shell start: start an approved command,
+#   command-restore                    start the command noted for this tab or split
+#   command-restore --restore          at shell start: start an approved command,
 #                                  ask about any other
-#   tab-restore note <word>...     note the command that starts now (shell hook)
-#   tab-restore clear              forget it: the command returned (shell hook)
-#   tab-restore approved           list the approved commands
-#   sudo tab-restore approve <word>...  approve a command to start on its own
-#   sudo tab-restore revoke <word>...   take an approval back
+#   command-restore note <word>...     note the command that starts now (shell hook)
+#   command-restore clear              forget it: the command returned (shell hook)
+#   command-restore approved           list the approved commands, both lists
+#   sudo command-restore approve <word>...  approve a command to start on its own
+#   sudo command-restore revoke <word>...   take an approval back
 #
 # The root-owned shell startup (fish init, /etc/zdotdir/.zshrc) calls `note`
 # before every command made only of plain words, and `clear` once it returns.
@@ -19,7 +19,7 @@
 #
 # One note per surface, keyed by GHOSTTY_SURFACE_ID (Ghostty patch
 # surface-id; Ghostty saves the id with the window state):
-#   $XDG_STATE_HOME/tab-restore/<SURFACE_ID>   line 1 the folder, line 2 the words
+#   $XDG_STATE_HOME/command-restore/<SURFACE_ID>   line 1 the folder, line 2 the words
 #
 # Notes are user-writable, so they are data: every word must be a plain word
 # (letters, digits, - _ . / = : , @ + %), nothing passes through a shell, and
@@ -28,9 +28,14 @@
 # runs. A command the shell would have expanded (quotes, $, ~, globs, ;, |) is
 # never noted.
 #
-# Approvals are root-owned (/var/db/tab-restore/approved, one line of words
-# each), because a list the user can write would approve anything for any
-# process running as the user. An approved command starts on its own, but only
+# Approvals are root-owned, because a list the user can write would approve
+# anything for any process running as the user. Two lists, one line of words
+# each, and a line in either one counts:
+#   /var/db/command-restore/approved  written by `sudo command-restore approve`
+#   /etc/command-restore/approved     declared: nix-config installs it from
+#                                     modules/command-restore/approved
+# Both use the same format, so moving the runtime list into Nix is a plain
+# copy of the file. An approved command starts on its own, but only
 # when its program resolves to a root-owned path; every other command asks,
 # and Enter declines: a command cut off midway may be one that must not run
 # twice.
@@ -40,31 +45,32 @@ set -uo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  tab-restore                    start the command noted for this tab or split
-  tab-restore --restore          at shell start: start an approved command,
+  command-restore                    start the command noted for this tab or split
+  command-restore --restore          at shell start: start an approved command,
                                  ask about any other
-  tab-restore note <word>...     note the command that starts now (shell hook)
-  tab-restore clear              forget it: the command returned (shell hook)
-  tab-restore approved           list the approved commands
-  sudo tab-restore approve <word>...  approve a command to start on its own
-  sudo tab-restore revoke <word>...   take an approval back
+  command-restore note <word>...     note the command that starts now (shell hook)
+  command-restore clear              forget it: the command returned (shell hook)
+  command-restore approved           list the approved commands, both lists
+  sudo command-restore approve <word>...  approve a command to start on its own
+  sudo command-restore revoke <word>...   take an approval back
 EOF
 }
 
 uuid_re='^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'
 word_re='^[A-Za-z0-9_./=:,@+%-]+$'
-approved_dir=/var/db/tab-restore
+approved_dir=/var/db/command-restore
 approved_file=$approved_dir/approved
+declared_file=/etc/command-restore/approved
 
 # Commands with a restore of their own, or that would restart this one.
-skip_names=(claude claude-continue tab-restore)
+skip_names=(claude claude-continue command-restore)
 
 surface=${GHOSTTY_SURFACE_ID:-}
-dir="${XDG_STATE_HOME:-$HOME/.local/state}/tab-restore"
+dir="${XDG_STATE_HOME:-$HOME/.local/state}/command-restore"
 record="$dir/$surface"
 
 fail() {
-  printf 'tab-restore: %s\n' "$1" >&2
+  printf 'command-restore: %s\n' "$1" >&2
   exit 1
 }
 
@@ -131,13 +137,13 @@ read_note() {
   plain_words "${words[@]}"
 }
 
+# Whether a list holds this exact line.
+in_list() {
+  [[ -f "$1" ]] && grep -qxF -- "$2" "$1"
+}
+
 is_approved() {
-  [[ -f "$approved_file" ]] || return 1
-  local line
-  while IFS= read -r line; do
-    [[ "$line" == "${words[*]}" ]] && return 0
-  done <"$approved_file"
-  return 1
+  in_list "$approved_file" "${words[*]}" || in_list "$declared_file" "${words[*]}"
 }
 
 if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then
@@ -203,7 +209,7 @@ approve() {
   (( EUID == 0 )) || fail "approve writes a root-owned list: run it with sudo"
   plain_words "$@" || fail "not plain words: nothing approved"
   local line="$*" tmp
-  if [[ -f "$approved_file" ]] && grep -qxF -- "$line" "$approved_file"; then
+  if in_list "$approved_file" "$line" || in_list "$declared_file" "$line"; then
     printf '%salready approved:%s %s\n' "$C_DIM" "$C_OFF" "$line" >&2
     return 0
   fi
@@ -222,22 +228,35 @@ revoke() {
   (( EUID == 0 )) || fail "revoke writes a root-owned list: run it with sudo"
   plain_words "$@" || fail "not plain words"
   local line="$*" tmp
-  if ! { [[ -f "$approved_file" ]] && grep -qxF -- "$line" "$approved_file"; }; then
+  if ! in_list "$approved_file" "$line"; then
+    in_list "$declared_file" "$line" \
+      && fail "declared in $declared_file: remove it from nix-config, then deploy"
     fail "not approved: $line"
   fi
   tmp=$(mktemp "$approved_dir/.approved.XXXXXX") || fail "cannot write in $approved_dir"
   if { grep -vxF -- "$line" "$approved_file" || true; } >"$tmp" \
      && chmod 644 -- "$tmp" && mv -f -- "$tmp" "$approved_file"; then
     printf '✓ revoked: %s\n' "$line" >&2
+    in_list "$declared_file" "$line" \
+      && printf '%sstill approved: %s declares it%s\n' "$C_ATTN" "$declared_file" "$C_OFF" >&2
     return 0
   fi
   rm -f -- "$tmp"
   fail "cannot write $approved_file"
 }
 
+# Each list under its path, the lines on stdout and the labels on stderr, so
+# `command-restore approved >file` keeps only the lines.
 list_approved() {
-  [[ -f "$approved_file" ]] || { printf '%snothing approved%s\n' "$C_DIM" "$C_OFF" >&2; return 0; }
-  cat -- "$approved_file"
+  local f
+  for f in "$approved_file" "$declared_file"; do
+    printf '%s%s%s\n' "$C_DIM" "$f" "$C_OFF" >&2
+    if [[ -s "$f" ]]; then
+      cat -- "$f"
+    else
+      printf '%snothing approved%s\n' "$C_DIM" "$C_OFF" >&2
+    fi
+  done
 }
 
 # Manual start: the human asked, so no prompt.
@@ -254,7 +273,7 @@ restore() {
   [[ "$surface" =~ $uuid_re && -f "$record" ]] || exit 0
   if ! read_note; then
     rm -f -- "$record"
-    printf '%stab-restore: dropped an unreadable note (%s)%s\n' \
+    printf '%scommand-restore: dropped an unreadable note (%s)%s\n' \
       "$C_DIM" "$record" "$C_OFF" >&2
     exit 0
   fi

@@ -171,9 +171,9 @@ let
         ${perUser}/bin/claude-continue --restore
     end
 
-    # The same for programs listed in tab-restore.nix (WeeChat): note one
+    # Any other command (WeeChat, say), by command-restore.nix: note it
     # while it runs, offer it again after a Ghostty quit or a restart.
-    ${config.tabRestore.fishInit}
+    ${config.commandRestore.fishInit}
   '';
 
   # Same-name PATH interpose, claude-shim pattern (claude-code-hardening

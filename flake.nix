@@ -40,7 +40,7 @@
           ./modules/one-password.nix
           ./modules/ghostty.nix
           ./modules/weechat.nix
-          ./modules/tab-restore.nix
+          ./modules/command-restore.nix
           inputs.sudowhat.darwinModules.default
           inputs.claude-hardening.darwinModules.claude
           inputs.claude-hardening.darwinModules.git-trust
