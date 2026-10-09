@@ -261,8 +261,10 @@ approve() {
     [[ -d "$d" ]] || mkdir -m 755 -- "$d" || fail "cannot create $d"
   done
   tmp=$(mktemp "$approved_dir/.${approved_file##*/}.XXXXXX") || fail "cannot write in $approved_dir"
+  # chmod without --: macOS chmod stops reading options at the mode, so a --
+  # after it is a file name. $tmp is absolute, so it never reads as an option.
   if { [[ -f "$approved_file" ]] && cat -- "$approved_file"; printf '%s\n' "$line"; } >"$tmp" \
-     && chmod 644 -- "$tmp" && mv -f -- "$tmp" "$approved_file"; then
+     && chmod 644 "$tmp" && mv -f -- "$tmp" "$approved_file"; then
     printf '✓ approved: %s\n' "$(shown "$line")" >&2
     return 0
   fi
@@ -281,7 +283,7 @@ revoke() {
   fi
   tmp=$(mktemp "$approved_dir/.${approved_file##*/}.XXXXXX") || fail "cannot write in $approved_dir"
   if { grep -vxF -- "$line" "$approved_file" || true; } >"$tmp" \
-     && chmod 644 -- "$tmp" && mv -f -- "$tmp" "$approved_file"; then
+     && chmod 644 "$tmp" && mv -f -- "$tmp" "$approved_file"; then
     printf '✓ revoked: %s\n' "$(shown "$line")" >&2
     in_list "$declared_file" "$line" \
       && printf '%sstill approved: %s declares it%s\n' "$C_ATTN" "$declared_file" "$C_OFF" >&2
