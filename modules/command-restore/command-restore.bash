@@ -6,12 +6,13 @@
 #   command-restore                    start the command noted for this tab or split
 #   command-restore --restore          at shell start: start an approved command,
 #                                      ask about any other
-#   command-restore note <word>...     note the command that starts now (shell hook)
+#   command-restore note <command> [<arg>...]
+#                                      note the command that starts now (shell hook)
 #   command-restore clear              forget it: the command returned (shell hook)
 #   command-restore list               list your approved commands, both lists
-#   sudo command-restore approve <folder> <word>...
+#   sudo command-restore approve <folder> <command> [<arg>...]
 #                                      approve a command in a folder to start on its own
-#   sudo command-restore revoke <folder> <word>...
+#   sudo command-restore revoke <folder> <command> [<arg>...]
 #                                      take an approval back
 #
 # The root-owned shell startup (fish init, /etc/zdotdir/.zshrc) calls `note`
@@ -53,12 +54,13 @@ Usage:
   command-restore                    start the command noted for this tab or split
   command-restore --restore          at shell start: start an approved command,
                                      ask about any other
-  command-restore note <word>...     note the command that starts now (shell hook)
+  command-restore note <command> [<arg>...]
+                                     note the command that starts now (shell hook)
   command-restore clear              forget it: the command returned (shell hook)
   command-restore list               list your approved commands, both lists
-  sudo command-restore approve <folder> <word>...
+  sudo command-restore approve <folder> <command> [<arg>...]
                                      approve a command in a folder to start on its own
-  sudo command-restore revoke <folder> <word>...
+  sudo command-restore revoke <folder> <command> [<arg>...]
                                      take an approval back
 EOF
 }
