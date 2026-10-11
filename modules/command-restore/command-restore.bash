@@ -511,8 +511,12 @@ restore() {
         # what the approval does and where it goes.
         local line
         approval_line "$cwd" "${approve_words[@]}" || fail "the note is not an approvable line"
-        printf 'approve: start %s in %s without asking after a Ghostty quit\n' \
-          "${line#*$'\t'}" "${line%%$'\t'*}" >&2
+        # The session flags are not in the approval (the Claude rule), so
+        # say where the session comes from instead.
+        local resumes=''
+        [[ "$name" == claude ]] && resumes=", resuming the tab's own session"
+        printf 'approve: start %s in %s without asking after a Ghostty quit%s\n' \
+          "${line#*$'\t'}" "${line%%$'\t'*}" "$resumes" >&2
         printf '%ssudo asks next; it adds that line to %s%s\n' \
           "$C_DIM" "$approved_file" "$C_OFF" >&2
         if sudo -- "$0" approve "$cwd" "${approve_words[@]}"; then
