@@ -5,6 +5,8 @@ let
   # so sudo shows this same path.
   commandRestore = pkgs.writeShellApplication {
     name = "command-restore";
+    # jq reads claude-hardening's per-surface session record (the Claude rule).
+    runtimeInputs = [ pkgs.jq ];
     text = lib.removePrefix "#!/usr/bin/env bash\n"
       (builtins.readFile ./command-restore/command-restore.bash);
   };
@@ -21,12 +23,12 @@ in
     fishInit = lib.mkOption {
       type = lib.types.lines;
       readOnly = true;
-      description = "fish init lines: the note hooks and the restore prompt.";
+      description = "fish init lines: the note hooks, the restore prompt and its e.";
     };
     zshInit = lib.mkOption {
       type = lib.types.lines;
       readOnly = true;
-      description = "/etc/zdotdir/.zshrc lines: the note hooks and the restore prompt.";
+      description = "/etc/zdotdir/.zshrc lines: the note hooks, the restore prompt and its e.";
     };
   };
 
@@ -65,7 +67,15 @@ in
                   ${bin} clear
               end
           end
+          # 3: the user chose e; the line goes on the command line, unrun.
           ${bin} --restore
+          if test $status -eq 3; and set -g __command_restore_line (${bin} line)
+              function __command_restore_prefill --on-event fish_prompt
+                  functions -e __command_restore_prefill
+                  commandline -r -- $__command_restore_line
+                  set -e __command_restore_line
+              end
+          end
       end
     '';
     commandRestore.zshInit = ''
@@ -86,7 +96,12 @@ in
         }
         add-zsh-hook preexec _command_restore_note
         add-zsh-hook precmd _command_restore_clear
+        # 3: the user chose e; the line goes on the command line, unrun.
         ${bin} --restore
+        if (( $? == 3 )); then
+          _command_restore_line=$(${bin} line) && print -rz -- "$_command_restore_line"
+          unset _command_restore_line
+        fi
       fi
     '';
   };

@@ -56,14 +56,7 @@ in
     # direnv-trust module); replaces `direnv hook zsh`.
     ${config.direnvTrust.zshInit}
 
-    # Offer to resume the Claude session this Ghostty surface held when a
-    # Ghostty quit or a restart cut it off. claude-continue (claude-hardening)
-    # reads its per-surface record as data and asks before anything runs.
-    if [[ -n $GHOSTTY_SURFACE_ID && -x /etc/profiles/per-user/jooize/bin/claude-continue ]]; then
-      /etc/profiles/per-user/jooize/bin/claude-continue --restore
-    fi
-
-    # Any other command (WeeChat, say), by command-restore.nix: note it
+    # Every command (Claude, WeeChat, ...), by command-restore.nix: note it
     # while it runs, offer it again after a Ghostty quit or a restart.
     ${config.commandRestore.zshInit}
   '';

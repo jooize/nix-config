@@ -6,6 +6,8 @@
 #   command-restore                    start the command noted for this tab or split
 #   command-restore --restore          at shell start: start an approved command,
 #                                      ask about any other
+#   command-restore line               print the noted line and forget it, for
+#                                      the shell to put on its command line (e)
 #   command-restore note <command> [<arg>...]
 #                                      note the command that starts now (shell hook)
 #   command-restore clear              forget it: the command returned (shell hook)
@@ -34,8 +36,9 @@
 # Approvals are root-owned, because a list the user can write would approve
 # anything for any process running as the user. Each user has two lists, and
 # a line in either one counts. A line is the folder, a tab, then the words:
-# an approval covers both lines the prompt shows, so a note cannot pick
-# another folder for an approved command. The folder may hold any character
+# an approval covers the folder and the command together, so a note (or a
+# window state that opens a shell elsewhere) cannot pick another folder for
+# an approved command. The folder may hold any character
 # but a control character (tab and newline included).
 #   /var/db/command-restore/approved/<user>  written by `sudo command-restore approve`
 #   /etc/command-restore/approved/<user>     declared: nix-config installs it from
@@ -44,7 +47,27 @@
 # copy of the file. An approved command starts on its own, but only
 # when its program resolves to a root-owned path; every other command asks,
 # and Enter declines: a command cut off midway may be one that must not run
-# twice.
+# twice. At the prompt, e puts the line on the shell's command line instead,
+# unrun, to change before Enter: the shell startup calls `line` when
+# --restore exits 3 (fish commandline -r, zsh print -z).
+#
+# Nothing here changes folder. Ghostty restores each surface's folder (the
+# last one its shell reported), and a command starts only when the shell
+# starts in the folder it was noted in; elsewhere this says where it ran and
+# stops. The shell keeps its folder, so Cmd+T copies the right one and the
+# shell is still there when the command returns.
+#
+# Claude Code (claude): a restored `claude` resumes the session this surface
+# held rather than starting a new one. The session comes from the record
+# claude-hardening's surface-session hook keeps per surface,
+#   $XDG_STATE_HOME/agents/claude/surfaces/<SURFACE_ID>.json
+# read as data: the id must be a UUID, the session must have run in this
+# folder, and its conversation file must exist (Claude writes it at the first
+# message; a session without one has nothing to resume). The noted words lose
+# their own session flags (-c, --continue, -r/--resume and its id,
+# --session-id and its id, --fork-session); an approval covers what is left,
+# and the line that runs adds --resume <id>. `claude --model haiku` comes back
+# as `claude --model haiku --resume <id>`, approved as `claude --model haiku`.
 
 set -uo pipefail
 
@@ -54,6 +77,8 @@ Usage:
   command-restore                    start the command noted for this tab or split
   command-restore --restore          at shell start: start an approved command,
                                      ask about any other
+  command-restore line               print the noted line and forget it, for
+                                     the shell to put on its command line (e)
   command-restore note <command> [<arg>...]
                                      note the command that starts now (shell hook)
   command-restore clear              forget it: the command returned (shell hook)
@@ -70,8 +95,8 @@ word_re='^[A-Za-z0-9_./=:,@+%-]+$'
 approved_dir=/var/db/command-restore/approved
 declared_dir=/etc/command-restore/approved
 
-# Commands with a restore of their own, or that would restart this one.
-skip_names=(claude claude-continue command-restore)
+# Commands that would restart this one.
+skip_names=(command-restore)
 
 surface=${GHOSTTY_SURFACE_ID:-}
 dir="${XDG_STATE_HOME:-$HOME/.local/state}/command-restore"
@@ -184,8 +209,64 @@ shown() {
 
 is_approved() {
   local line
-  approval_line "$cwd" "${words[@]}" || return 1
+  approval_line "$cwd" "${approve_words[@]}" || return 1
   in_list "$approved_file" "$line" || in_list "$declared_file" "$line"
+}
+
+# A folder as prose: ~ for home, control characters removed.
+tilde() {
+  local f=$1
+  [[ "$f" == "$HOME" || "$f" == "$HOME"/* ]] && f="~${f#"$HOME"}"
+  LC_ALL=C tr -d '[:cntrl:]' <<<"$f"
+}
+
+# Whether the shell is in the noted folder. Physical paths, so a symlinked
+# spelling of the same folder matches.
+in_noted_folder() {
+  local there
+  here=$(pwd -P) || return 1
+  there=$(cd -P -- "$cwd" 2>/dev/null && pwd -P) || return 1
+  [[ "$here" == "$there" ]]
+}
+
+# The Claude rule (header): fill approve_words and run_words for a noted
+# `claude`, from this surface's session record. Fails when there is no
+# session here to resume.
+claude_words() {
+  local rec sid transcript ran w drop=0
+  rec="${XDG_STATE_HOME:-$HOME/.local/state}/agents/claude/surfaces/$surface.json"
+  [[ -f "$rec" ]] || return 1
+  # Unit separator between fields; the folder last, so it reads whole.
+  IFS=$'\x1f' read -r -d '' sid transcript ran < <(jq -j \
+    '[.session_id // "", .transcript // "", .cwd // ""] | join("\u001f")' "$rec" 2>/dev/null) || true
+  [[ "$sid" =~ $uuid_re ]] || return 1
+  [[ "$transcript" == /* && "${transcript##*/}" == "$sid.jsonl" && -f "$transcript" ]] || return 1
+  [[ "$(cd -P -- "$ran" 2>/dev/null && pwd -P)" == "$here" ]] || return 1
+  approve_words=("${words[0]}")
+  for w in "${words[@]:1}"; do
+    if (( drop )); then
+      drop=0
+      [[ "$w" =~ $uuid_re ]] && continue     # the id that flag named
+    fi
+    case "$w" in
+      -c|--continue|--fork-session|--resume=*|--session-id=*) continue ;;
+      -r|--resume|--session-id) drop=1; continue ;;
+    esac
+    approve_words+=("$w")
+  done
+  run_words=("${approve_words[@]}" --resume "$sid")
+}
+
+# Resolve the program and fill approve_words and run_words: the noted words,
+# or for claude the Claude rule. Fails with `why` set.
+prepare() {
+  path=$(type -P -- "${words[0]}") || { why="${words[0]} is not on PATH"; return 1; }
+  if [[ "${words[0]##*/}" == claude ]]; then
+    claude_words || { why="no Claude session with messages to resume here"; return 1; }
+  else
+    approve_words=("${words[@]}")
+    run_words=("${words[@]}")
+  fi
 }
 
 if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then
@@ -195,29 +276,29 @@ else
   C_B='' C_DIM='' C_ATTN='' C_KEY='' C_ROOT='' C_OFF=''
 fi
 
-# The lines that run, drawn the terminal-output way: the program's first path
-# segment bold cyan, its name and every token starting with - bold blue.
-# Control characters are stripped from the folder; the words are plain.
+# The line that runs, drawn the terminal-output way: the program's first path
+# segment bold cyan, its name and every token starting with - bold blue. The
+# words are plain; it runs in this folder, so there is no cd line.
 show_command() {
-  local shown_cwd first rest base w line
-  shown_cwd=$(LC_ALL=C tr -d '[:cntrl:]' <<<"$cwd")
-  printf '  %scd%s %s\n' "$C_KEY" "$C_OFF" "$shown_cwd" >&2
+  local first rest base w line
   first=${path#/}; first=${first%%/*}
   rest=${path#/"$first"}; base=${rest##*/}; rest=${rest%/*}
   line="  ${C_ROOT}/${first}${C_OFF}${rest}/${C_KEY}${base}${C_OFF}"
-  for w in "${words[@]:1}"; do
+  for w in "${run_words[@]:1}"; do
     if [[ "$w" == -* ]]; then line+=" ${C_KEY}${w}${C_OFF}"; else line+=" $w"; fi
   done
   printf '%s\n' "$line" >&2
 }
 
-# Start the noted command. The note stays while it runs, so another Ghostty
-# quit offers it again; a return with the terminal still there clears it.
+# Start the noted command, here. The note stays while it runs, so another
+# Ghostty quit offers it again; a return with the terminal still there clears
+# it. By hand the command's exit status is ours; at shell start it is 0, so
+# the startup reads only this tool's own codes (2 declined, 3 edit).
 start() {
   local rc=0
-  cd -- "$cwd" || fail "cannot enter $cwd"
-  "$path" "${words[@]:1}" || rc=$?
+  "$path" "${run_words[@]:1}" || rc=$?
   have_terminal && rm -f -- "$record"
+  [[ "${1:-}" == restore ]] && exit 0
   exit "$rc"
 }
 
@@ -321,9 +402,22 @@ list_approved() {
 start_by_hand() {
   need_surface
   read_note || fail "no command noted for this tab or split"
-  path=$(type -P -- "${words[0]}") || fail "${words[0]} is not on PATH"
+  in_noted_folder || fail "it ran in $(tilde "$cwd"): cd there, then run command-restore"
+  prepare || fail "$why"
   show_command
   start
+}
+
+# For e: the line the prompt showed, as words the shell reads back unchanged
+# (plain words and a UUID), for the shell to put on its command line. The
+# note goes: the line is the user's now, and running it notes it again.
+line_for_shell() {
+  need_surface
+  read_note || fail "no command noted for this tab or split"
+  in_noted_folder || fail "it ran in $(tilde "$cwd")"
+  prepare || fail "$why"
+  rm -f -- "$record"
+  printf '%s\n' "${run_words[*]}"
 }
 
 # Shell start: silent unless this surface holds a note of a cut-off command.
@@ -336,23 +430,40 @@ restore() {
     exit 0
   fi
   [[ -t 0 && -t 2 ]] || exit 0              # off-tty there is nobody to ask
-  path=$(type -P -- "${words[0]}") || exit 0
   local name=${words[0]##*/}
+
+  # Elsewhere: say where it ran and keep the note, like l.
+  if ! in_noted_folder; then
+    printf '%s%s was running in this tab in %s when Ghostty closed.\n' \
+      "$C_DIM" "$name" "$(tilde "$cwd")" >&2
+    printf 'This shell started in %s, so it does not start here. To start it there:%s\n\n' \
+      "$(tilde "$(pwd)")" "$C_OFF" >&2
+    printf '  %scd%s %s\n  %scommand-restore%s\n\n' "$C_KEY" "$C_OFF" \
+      "$(LC_ALL=C tr -d '[:cntrl:]' <<<"$cwd")" "$C_KEY" "$C_OFF" >&2
+    exit 0
+  fi
+  if ! prepare; then
+    rm -f -- "$record"
+    printf '%s%s was running in this tab when Ghostty closed: %s.%s\n' \
+      "$C_DIM" "$name" "$why" "$C_OFF" >&2
+    exit 0
+  fi
 
   if is_approved && root_owned_path "$path"; then
     printf '%s%s was running in this tab when Ghostty closed. Starting %s.%s\n\n' \
       "$C_DIM" "$name" "$name" "$C_OFF" >&2
     show_command
     printf '\n' >&2
-    start
+    start restore
   fi
 
   printf '%s%s was running in this tab when Ghostty closed.%s\n\n' "$C_DIM" "$name" "$C_OFF" >&2
   show_command
   local gate
-  printf -v gate '%srun the lines above? [%sy%s%s/%sN%s%s]%s%s · %sl%s%s ask later · %sa%s%s always%s ' \
+  printf -v gate '%srun the line above? [%sy%s%s/%sN%s%s]%s%s · %se%s%s edit · %sl%s%s ask later · %sa%s%s always%s ' \
     "$C_B" "$C_KEY" "$C_OFF" "$C_B" "$C_KEY" "$C_OFF" "$C_B" "$C_OFF" \
-    "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_OFF"
+    "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_KEY" "$C_OFF" \
+    "$C_DIM" "$C_OFF"
   printf '\n%s' "$gate" >&2
   local answer
   while :; do
@@ -365,7 +476,13 @@ restore() {
       answer=l
     fi
     case "$answer" in
-      y|yes) start ;;
+      y|yes) start restore ;;
+      e)
+        # The startup puts the line on the command line (`line`); the note
+        # stays until then.
+        printf '%son the command line; Enter runs it%s\n' "$C_DIM" "$C_OFF" >&2
+        exit 3
+        ;;
       ''|n|no)
         rm -f -- "$record"
         printf '%saborted; %s not started%s\n' "$C_ATTN" "$name" "$C_OFF" >&2
@@ -379,16 +496,16 @@ restore() {
         # sudo shows only the store path and its arguments, so say first
         # what the approval does and where it goes.
         local line
-        approval_line "$cwd" "${words[@]}" || fail "the note is not an approvable line"
+        approval_line "$cwd" "${approve_words[@]}" || fail "the note is not an approvable line"
         printf 'approve: start %s in %s without asking after a Ghostty quit\n' \
           "${line#*$'\t'}" "${line%%$'\t'*}" >&2
         printf '%ssudo asks next; it adds that line to %s%s\n' \
           "$C_DIM" "$approved_file" "$C_OFF" >&2
-        if sudo -- "$0" approve "$cwd" "${words[@]}"; then
-          start
+        if sudo -- "$0" approve "$cwd" "${approve_words[@]}"; then
+          start restore
         fi
         # Back to the same gate, printed again so the answer has its keys.
-        printf '%snot approved; the lines above did not run%s\n%s' "$C_ATTN" "$C_OFF" "$gate" >&2
+        printf '%snot approved; the line above did not run%s\n%s' "$C_ATTN" "$C_OFF" "$gate" >&2
         ;;
       *)
         # The gate line follows again, without its blank line, so the next
@@ -405,6 +522,7 @@ lists_for "$me"
 case "${1:-}" in
   '') start_by_hand ;;
   --restore) [[ $# -eq 1 ]] || { usage >&2; exit 1; }; restore ;;
+  line) [[ $# -eq 1 ]] || { usage >&2; exit 1; }; line_for_shell ;;
   note) shift; note "$@" ;;
   clear) [[ $# -eq 1 ]] || { usage >&2; exit 1; }; clear_record ;;
   approve) shift; approve "$@" ;;

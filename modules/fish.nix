@@ -164,14 +164,7 @@ let
         end
     end
 
-    # Offer to resume the Claude session this Ghostty surface held when a
-    # Ghostty quit or a restart cut it off. claude-continue (claude-hardening)
-    # reads its per-surface record as data and asks before anything runs.
-    if status is-interactive; and set -q GHOSTTY_SURFACE_ID; and test -x ${perUser}/bin/claude-continue
-        ${perUser}/bin/claude-continue --restore
-    end
-
-    # Any other command (WeeChat, say), by command-restore.nix: note it
+    # Every command (Claude, WeeChat, ...), by command-restore.nix: note it
     # while it runs, offer it again after a Ghostty quit or a restart.
     ${config.commandRestore.fishInit}
   '';
