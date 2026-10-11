@@ -271,9 +271,9 @@ prepare() {
 
 if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then
   C_B=$'\033[1m' C_DIM=$'\033[2m' C_ATTN=$'\033[33m' C_KEY=$'\033[1;34m'
-  C_ROOT=$'\033[1;36m' C_OFF=$'\033[0m'
+  C_ROOT=$'\033[1;36m' C_OK=$'\033[32m' C_OFF=$'\033[0m'
 else
-  C_B='' C_DIM='' C_ATTN='' C_KEY='' C_ROOT='' C_OFF=''
+  C_B='' C_DIM='' C_ATTN='' C_KEY='' C_ROOT='' C_OK='' C_OFF=''
 fi
 
 # The line that runs, drawn the terminal-output way: the program's first path
@@ -346,7 +346,7 @@ approve() {
   # after it is a file name. $tmp is absolute, so it never reads as an option.
   if { [[ -f "$approved_file" ]] && cat -- "$approved_file"; printf '%s\n' "$line"; } >"$tmp" \
      && chmod 644 "$tmp" && mv -f -- "$tmp" "$approved_file"; then
-    printf '✓ approved: %s\n' "$(shown "$line")" >&2
+    printf '%s✓%s approved: %s\n' "$C_OK" "$C_OFF" "$(shown "$line")" >&2
     return 0
   fi
   rm -f -- "$tmp"
@@ -365,7 +365,7 @@ revoke() {
   tmp=$(mktemp "$approved_dir/.${approved_file##*/}.XXXXXX") || fail "cannot write in $approved_dir"
   if { grep -vxF -- "$line" "$approved_file" || true; } >"$tmp" \
      && chmod 644 "$tmp" && mv -f -- "$tmp" "$approved_file"; then
-    printf '✓ revoked: %s\n' "$(shown "$line")" >&2
+    printf '%s✓%s revoked: %s\n' "$C_OK" "$C_OFF" "$(shown "$line")" >&2
     in_list "$declared_file" "$line" \
       && printf '%sstill approved: %s declares it%s\n' "$C_ATTN" "$declared_file" "$C_OFF" >&2
     return 0
