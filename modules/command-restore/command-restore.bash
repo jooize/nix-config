@@ -290,12 +290,31 @@ show_command() {
   printf '%s\n' "$line" >&2
 }
 
+# Tell Ghostty which folder this surface is in (OSC 7, the shape Ghostty's
+# own shell integration sends: file://<host><path>, the path URL-escaped).
+# The integration first reports at the first prompt, and a command started at
+# shell start runs before any prompt; without this Ghostty saves no folder for
+# the surface, and the next restore opens it in the default folder, where the
+# note no longer starts.
+report_folder() {
+  local LC_ALL=C s=$PWD out='' c i
+  for (( i = 0; i < ${#s}; i++ )); do
+    c=${s:i:1}
+    case "$c" in
+      [A-Za-z0-9/._~-]) out+=$c ;;
+      *) printf -v c '%%%02X' "'$c"; out+=$c ;;
+    esac
+  done
+  printf '\033]7;file://%s%s\a' "${HOSTNAME:-}" "$out" >&2
+}
+
 # Start the noted command, here. The note stays while it runs, so another
 # Ghostty quit offers it again; a return with the terminal still there clears
 # it. By hand the command's exit status is ours; at shell start it is 0, so
 # the startup reads only this tool's own codes (2 declined, 3 edit).
 start() {
   local rc=0
+  [[ "${1:-}" == restore ]] && report_folder
   "$path" "${run_words[@]:1}" || rc=$?
   have_terminal && rm -f -- "$record"
   [[ "${1:-}" == restore ]] && exit 0
@@ -432,7 +451,7 @@ restore() {
   [[ -t 0 && -t 2 ]] || exit 0              # off-tty there is nobody to ask
   local name=${words[0]##*/}
 
-  # Elsewhere: say where it ran and keep the note, like l.
+  # Elsewhere: say where it ran and keep the note.
   if ! in_noted_folder; then
     printf '%s%s was running in this tab in %s when Ghostty closed.\n' \
       "$C_DIM" "$name" "$(tilde "$cwd")" >&2
@@ -460,20 +479,19 @@ restore() {
   printf '%s%s was running in this tab when Ghostty closed.%s\n\n' "$C_DIM" "$name" "$C_OFF" >&2
   show_command
   local gate
-  printf -v gate '%srun the line above? [%sy%s%s/%sN%s%s]%s%s · %se%s%s edit · %sl%s%s ask later · %sa%s%s always%s ' \
+  printf -v gate '%srun the line above? [%sy%s%s/%sN%s%s]%s%s · %se%s%s edit · %sa%s%s always%s ' \
     "$C_B" "$C_KEY" "$C_OFF" "$C_B" "$C_KEY" "$C_OFF" "$C_B" "$C_OFF" \
-    "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_KEY" "$C_OFF" \
-    "$C_DIM" "$C_OFF"
+    "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_KEY" "$C_OFF" "$C_DIM" "$C_OFF"
   printf '\n%s' "$gate" >&2
   local answer
   while :; do
     if ! IFS= read -r answer; then
       # End of input is no answer: a Ghostty quit or a restart while the
       # gate waits hangs up the terminal, and the read can return before the
-      # hangup signal ends this process. Keep the note, like l, so the next
-      # shell in this tab asks again.
-      printf '\n' >&2    # the cursor waits on the gate line
-      answer=l
+      # hangup signal ends this process. Keep the note, so the next shell in
+      # this tab asks again.
+      printf '\n%skept; the next shell in this tab asks again%s\n' "$C_DIM" "$C_OFF" >&2
+      exit 0
     fi
     case "$answer" in
       y|yes) start restore ;;
@@ -487,10 +505,6 @@ restore() {
         rm -f -- "$record"
         printf '%saborted; %s not started%s\n' "$C_ATTN" "$name" "$C_OFF" >&2
         exit 2
-        ;;
-      l)
-        printf '%skept; the next shell in this tab asks again%s\n' "$C_DIM" "$C_OFF" >&2
-        exit 0
         ;;
       a)
         # sudo shows only the store path and its arguments, so say first
