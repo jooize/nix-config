@@ -376,6 +376,14 @@ restore() {
         exit 0
         ;;
       a)
+        # sudo shows only the store path and its arguments, so say first
+        # what the approval does and where it goes.
+        local line
+        approval_line "$cwd" "${words[@]}" || fail "the note is not an approvable line"
+        printf 'approve: start %s in %s without asking after a Ghostty quit\n' \
+          "${line#*$'\t'}" "${line%%$'\t'*}" >&2
+        printf '%ssudo asks next; it adds that line to %s%s\n' \
+          "$C_DIM" "$approved_file" "$C_OFF" >&2
         if sudo -- "$0" approve "$cwd" "${words[@]}"; then
           start
         fi
