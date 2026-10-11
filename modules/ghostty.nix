@@ -14,9 +14,9 @@ let
   # Releases after 1.3.1+hardening.1 attest manifest.txt too; check it the
   # same way.
   release = {
-    version = "1.3.1+jooize.3";
-    zipHash = "sha256-xfVgrbRs1xX1BsuyfTYNb5Tvv2lyFlfOr+KAMiZ6JXk=";
-    manifestHash = "sha256-rrI6OBIqk6YXye2qhBmFxHi6KPzWJQ4McQf3WJ6IIy4=";
+    version = "1.3.1+jooize.4";
+    zipHash = "sha256-X4DxiSoWctAQQfkkg6rFIEQpupePzkonUT8MV+ubRPc=";
+    manifestHash = "sha256-kAB+T/0hOnmDq2o2oQgr6WBPF+MydHrk6mKlzy01UFI=";
   };
   releaseFile = name: hash: pkgs.fetchurl {
     url = "https://github.com/jooize/ghostty/releases/download/v${lib.escapeURL release.version}/${name}";
