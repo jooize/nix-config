@@ -73,8 +73,15 @@ let
     # Parity with nix-darwin's set-environment, minus every ~/.nix-profile
     # entry (and minus the ~/.nix-defexpr/channels NIX_PATH prepend -- also
     # user-writable, and unused with flakes).
-    set -gx EDITOR ${fishSq config.environment.variables.EDITOR}
-    set -gx VISUAL ${fishSq config.environment.variables.VISUAL}
+    # The editor: the first of nvim, vim, vi on the PATH above, as a full
+    # path (environment.nix, extraInit, does the same for zsh and bash), or
+    # unset when none is found: an inherited value never survives.
+    set -e EDITOR VISUAL
+    set -l editors (command -s nvim vim vi)
+    if set -q editors[1]
+        set -gx EDITOR $editors[1]
+        set -gx VISUAL $editors[1]
+    end
     set -gx PAGER ${fishSq config.environment.variables.PAGER}
     set -gx NIX_SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt
     set -gx NIX_PATH "nixpkgs=flake:nixpkgs:/nix/var/nix/profiles/per-user/root/channels"

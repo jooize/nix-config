@@ -1,16 +1,4 @@
-{ lib, pkgs, ... }:
-let
-  # The first of nvim, vim, vi on PATH, looked up each time it runs, so
-  # installing or removing nvim needs no change here. PATH is the caller's:
-  # the root-owned profile dirs in the shells, secure_path under sudo.
-  editor = pkgs.writeShellScript "editor" ''
-    for e in nvim vim vi; do
-      if command -v "$e" >/dev/null 2>&1; then exec "$e" "$@"; fi
-    done
-    echo "editor: none of nvim, vim, vi is on PATH" >&2
-    exit 127
-  '';
-in
+{ lib, ... }:
 {
   # The intended nix-darwin knob for the PATH (and NIX_PROFILES, XDG_*_DIRS,
   # TERMINFO_DIRS) that set-environment bakes into root-owned /etc/zshenv and
@@ -28,14 +16,24 @@ in
     "/nix/var/nix/profiles/default"
   ];
 
-  # The editor every shell exports: set-environment carries it into zsh and
-  # bash, and fish.nix renders these same values. Tools that open an editor
-  # read them -- locked edit (SUDO_EDITOR, then VISUAL, then EDITOR, as sudo
-  # passes them through) and git (core.editor is pinned to
-  # ${VISUAL:-${EDITOR:-vi}}). A store path, so finding the wrapper itself
-  # never depends on PATH.
-  environment.variables = {
-    EDITOR = "${editor}";
-    VISUAL = "${editor}";
-  };
+  # The editor every shell exports: the first of nvim, vim, vi on the PATH
+  # set just above (root-owned profile dirs only), as a full path, looked up
+  # at shell start, so installing nvim needs no change here and a new shell
+  # picks it up. Tools name the editor by that path's file name (Claude
+  # Code's ctrl+g shows `vim`). Unset when none is found: nix-darwin exports
+  # EDITOR=nano by default (no option removes it), and an inherited value
+  # must not survive either. fish.nix does the same lookup. Tools that open
+  # an editor read these -- locked edit (SUDO_EDITOR, then VISUAL, then
+  # EDITOR, as sudo passes them through) and git (core.editor is pinned to
+  # ${VISUAL:-${EDITOR:-vi}}).
+  environment.extraInit = ''
+    unset EDITOR VISUAL
+    for __editor in nvim vim vi; do
+      __editor=$(command -v "$__editor") || continue
+      case $__editor in
+        /*) export EDITOR="$__editor" VISUAL="$__editor"; break ;;
+      esac
+    done
+    unset __editor
+  '';
 }
