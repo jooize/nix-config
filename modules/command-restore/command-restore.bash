@@ -71,6 +71,9 @@
 # `claude --model haiku`.
 # The note already leaves out -r/--resume/--session-id and their argument,
 # quoted or not, so `claude --resume "fable designs"` is noted as `claude`.
+# A prompt stays on the line (telling one from an option's value needs
+# claude's option table), so `claude hello` comes back sending hello again;
+# the line shown before it starts says so when that is sure.
 
 set -uo pipefail
 
@@ -263,6 +266,31 @@ claude_words() {
   run_words=("${approve_words[@]}" --resume "$sid")
 }
 
+# The word a restored claude line sends again as its prompt, into
+# prompt_word, or empty. Claude sends its first positional word as the prompt
+# and ignores any after it (measured, 2.1.296), but which words are positional
+# depends on which options take a value. Two cases are sure without that
+# table: a plain word right after `claude`, `--` or an option written with =,
+# none of which takes the next word; and a plain word right after another
+# plain word, since an option takes one value. A plain word after a bare
+# option (`--model haiku`, `--verbose hi`) is not flagged. An option with
+# several values (--add-dir a b) and a subcommand (`claude doctor`) are
+# flagged although no prompt is sent.
+claude_prompt_word() {
+  local w free=1
+  prompt_word=''
+  for w in "${approve_words[@]:1}"; do
+    if [[ "$w" != -* ]]; then
+      (( free )) && { prompt_word=$w; return 0; }
+      free=1
+    elif [[ "$w" == -- || "$w" == -*=* ]]; then
+      free=1
+    else
+      free=0
+    fi
+  done
+}
+
 # Resolve the program and fill approve_words and run_words: the noted words,
 # or for claude the Claude rule. Fails with `why` set.
 prepare() {
@@ -294,6 +322,11 @@ show_command() {
     if [[ "$w" == -* ]]; then line+=" ${C_KEY}${w}${C_OFF}"; else line+=" $w"; fi
   done
   printf '%s\n' "$line" >&2
+  if [[ "${words[0]##*/}" == claude ]]; then
+    claude_prompt_word
+    [[ -z "$prompt_word" ]] \
+      || printf '  %ssends %s to the session again as a prompt%s\n' "$C_ATTN" "$prompt_word" "$C_OFF" >&2
+  fi
 }
 
 # Tell Ghostty which folder this surface is in (OSC 7, the shape Ghostty's
