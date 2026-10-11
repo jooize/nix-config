@@ -8,8 +8,7 @@
 #                                      ask about any other
 #   command-restore line               print the noted line and forget it, for
 #                                      the shell to put on its command line (e)
-#   command-restore note <command> [<arg>...]
-#                                      note the command that starts now (shell hook)
+#   command-restore note <line>        note the command line that starts now (shell hook)
 #   command-restore clear              forget it: the command returned (shell hook)
 #   command-restore list               list your approved commands, both lists
 #   sudo command-restore approve <folder> <command> [<arg>...]
@@ -18,7 +17,8 @@
 #                                      take an approval back
 #
 # The root-owned shell startup (fish init, /etc/zdotdir/.zshrc) calls `note`
-# before every command made only of plain words, and `clear` once it returns.
+# with the line of every one-line command made only of plain words (and of
+# every `claude` line, see the Claude rule), and `clear` once it returns.
 # `clear` keeps the note when the terminal is gone (see have_terminal), so a
 # note survives only when a Ghostty quit or a restart cut the command off.
 #
@@ -64,10 +64,13 @@
 # read as data: the id must be a UUID, the session must have run in this
 # folder, and its conversation file must exist (Claude writes it at the first
 # message; a session without one has nothing to resume). The noted words lose
-# their own session flags (-c, --continue, -r/--resume and its id,
-# --session-id and its id, --fork-session); an approval covers what is left,
-# and the line that runs adds --resume <id>. `claude --model haiku` comes back
-# as `claude --model haiku --resume <id>`, approved as `claude --model haiku`.
+# their own session flags (-c, --continue, -r/--resume and the id or name
+# after it, --session-id and its id, --fork-session); an approval covers what
+# is left, and the line that runs adds --resume <id>. `claude --model haiku`
+# comes back as `claude --model haiku --resume <id>`, approved as
+# `claude --model haiku`.
+# The note already leaves out -r/--resume/--session-id and their argument,
+# quoted or not, so `claude --resume "fable designs"` is noted as `claude`.
 
 set -uo pipefail
 
@@ -79,8 +82,7 @@ Usage:
                                      ask about any other
   command-restore line               print the noted line and forget it, for
                                      the shell to put on its command line (e)
-  command-restore note <command> [<arg>...]
-                                     note the command that starts now (shell hook)
+  command-restore note <line>        note the command line that starts now (shell hook)
   command-restore clear              forget it: the command returned (shell hook)
   command-restore list               list your approved commands, both lists
   sudo command-restore approve <folder> <command> [<arg>...]
@@ -92,6 +94,10 @@ EOF
 
 uuid_re='^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'
 word_re='^[A-Za-z0-9_./=:,@+%-]+$'
+# One of claude's session flags and its argument, between spaces: a plain
+# word, a single-quoted string, or a double-quoted one with no $, ` or \ (one
+# with any of those is left, so the line is not noted).
+session_arg_re=" (-r|--resume|--session-id)(( +|=)('[^']*'|\"[^\"\$\`\\\\]*\"|[^ '\"-][^ ]*))? "
 approved_dir=/var/db/command-restore/approved
 declared_dir=/etc/command-restore/approved
 
@@ -246,7 +252,7 @@ claude_words() {
   for w in "${words[@]:1}"; do
     if (( drop )); then
       drop=0
-      [[ "$w" =~ $uuid_re ]] && continue     # the id that flag named
+      [[ "$w" != -* ]] && continue           # the id or name that flag named
     fi
     case "$w" in
       -c|--continue|--fork-session|--resume=*|--session-id=*) continue ;;
@@ -323,17 +329,30 @@ start() {
 
 # --- subcommands -------------------------------------------------------------
 
+# A line that is not one line of plain words is simply not noted: the shell
+# hooks send every `claude` line, quoted prompts included.
 note() {
   need_surface
-  plain_words "$@" || fail "not plain words: the command is not noted"
-  local name=${1##*/} s
+  (( $# == 1 )) || fail "note takes the command line as one argument"
+  local line=$1 name s
+  [[ "$line" != *$'\n'* ]] || return 0
+  read -r -a words <<<"$line"
+  if [[ "${words[0]:-}" == claude || "${words[0]:-}" == */claude ]]; then
+    line=" $line "
+    while [[ "$line" =~ $session_arg_re ]]; do
+      line=${line/"${BASH_REMATCH[0]}"/ }
+    done
+    read -r -a words <<<"$line"
+  fi
+  plain_words "${words[@]}" || return 0
+  name=${words[0]##*/}
   for s in "${skip_names[@]}"; do [[ "$name" == "$s" ]] && return 0; done
-  type -P -- "$1" >/dev/null || return 0     # a function or builtin: nothing to start
+  type -P -- "${words[0]}" >/dev/null || return 0   # a function or builtin: nothing to start
   [[ "$PWD" == /* ]] || fail "the current folder is unknown"
   mkdir -p -- "$dir" || fail "cannot create $dir"
   local tmp
   tmp=$(mktemp "$dir/.$surface.XXXXXX") || fail "cannot write in $dir"
-  if printf '%s\n%s\n' "$PWD" "$*" >"$tmp" && mv -f -- "$tmp" "$record"; then
+  if printf '%s\n%s\n' "$PWD" "${words[*]}" >"$tmp" && mv -f -- "$tmp" "$record"; then
     return 0
   fi
   rm -f -- "$tmp"

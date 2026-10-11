@@ -17,6 +17,10 @@ let
   # Checked in the shell first, so other commands cost no extra process.
   word = "[A-Za-z0-9_./=:,@+%-]+";
   lineRe = "^${word}( +${word})*$";
+  # A claude line goes to `note` whole, quotes and all: note drops its
+  # session flags and their argument (`--resume "fable designs"`) and then
+  # applies the same plain-word rule.
+  claudeRe = "^([^ ]*/)?claude( |$)";
 in
 {
   options.commandRestore = {
@@ -60,10 +64,10 @@ in
           # that name.
           function __command_restore_note --on-event fish_preexec
               set -l line (string trim -- $argv[1] | string collect)
-              if string match -qr -- '${lineRe}' "$line"
+              if string match -qr -- '${lineRe}' "$line"; or string match -qr -- '${claudeRe}' "$line"
                   and test "$(type -t -- (string split -f1 ' ' -- $line) 2>/dev/null)" = file
                   set -g __command_restore_noted
-                  ${bin} note (string split -n ' ' -- $line)
+                  ${bin} note "$line"
               end
           end
           function __command_restore_clear --on-event fish_postexec
@@ -93,12 +97,12 @@ in
           # buffer. Only a program from PATH: an alias, function, builtin or
           # reserved word (cd, a wrapper) would come back as some other
           # program of that name.
-          [[ $1 =~ '^ *${word}( +${word})* *$' ]] || return 0
+          [[ $1 =~ '^ *${word}( +${word})* *$' || $1 =~ '^ *([^ ]*/)?claude( |$)' ]] || return 0
           local -a w=(''${=1})
           (( ''${+aliases[$w[1]]} || ''${+functions[$w[1]]} \
              || ''${+builtins[$w[1]]} || ''${+reswords[$w[1]]} )) && return 0
           typeset -g _command_restore_noted=1
-          ${bin} note "''${w[@]}"
+          ${bin} note "$1"
         }
         _command_restore_clear() {
           [[ -n ''${_command_restore_noted-} ]] || return 0
