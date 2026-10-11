@@ -1,8 +1,5 @@
 { lib, pkgs, ... }:
 let
-  # A store path, root-owned: the shell startup calls it by this path, never
-  # through PATH. `a` at the restore prompt re-runs it under sudo (approve),
-  # so sudo shows this same path.
   commandRestore = pkgs.writeShellApplication {
     name = "command-restore";
     # jq reads claude-hardening's per-surface session record (the Claude rule).
@@ -10,7 +7,12 @@ let
     text = lib.removePrefix "#!/usr/bin/env bash\n"
       (builtins.readFile ./command-restore/command-restore.bash);
   };
-  bin = "${commandRestore}/bin/command-restore";
+  # The shell startup calls it by this path, never through PATH: root-owned
+  # at every step (the system profile, then the store), and each deploy
+  # points it at the new build, so a shell started before a deploy runs the
+  # current one. `a` at the restore prompt re-runs it under sudo (approve),
+  # so sudo shows this same path. systemPackages below puts it there.
+  bin = "/run/current-system/sw/bin/command-restore";
 
   # A command is noted only when it is made of plain words (command-restore's
   # word_re, joined by spaces), so it means the same thing when it runs again.
