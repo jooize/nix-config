@@ -54,9 +54,14 @@ in
     # off. A command that returns with the terminal still there clears it.
     commandRestore.fishInit = ''
       if status is-interactive; and set -q GHOSTTY_SURFACE_ID
+          # One line only (collect keeps a multi-line buffer whole, so the
+          # match refuses it), and only a program from PATH: a builtin or a
+          # function (cd, a wrapper) would come back as some other program of
+          # that name.
           function __command_restore_note --on-event fish_preexec
-              set -l line (string trim -- $argv[1])
+              set -l line (string trim -- $argv[1] | string collect)
               if string match -qr -- '${lineRe}' "$line"
+                  and test "$(type -t -- (string split -f1 ' ' -- $line) 2>/dev/null)" = file
                   set -g __command_restore_noted
                   ${bin} note (string split -n ' ' -- $line)
               end
@@ -81,13 +86,19 @@ in
     commandRestore.zshInit = ''
       if [[ -n $GHOSTTY_SURFACE_ID ]]; then
         autoload -Uz add-zsh-hook
+        zmodload zsh/parameter
         _command_restore_note() {
           # Spaces only around and between the words, so splitting on IFS
-          # below yields exactly those words.
-          if [[ $1 =~ '^ *${word}( +${word})* *$' ]]; then
-            typeset -g _command_restore_noted=1
-            ${bin} note ''${=1}
-          fi
+          # below yields exactly those words; the match refuses a multi-line
+          # buffer. Only a program from PATH: an alias, function, builtin or
+          # reserved word (cd, a wrapper) would come back as some other
+          # program of that name.
+          [[ $1 =~ '^ *${word}( +${word})* *$' ]] || return 0
+          local -a w=(''${=1})
+          (( ''${+aliases[$w[1]]} || ''${+functions[$w[1]]} \
+             || ''${+builtins[$w[1]]} || ''${+reswords[$w[1]]} )) && return 0
+          typeset -g _command_restore_noted=1
+          ${bin} note "''${w[@]}"
         }
         _command_restore_clear() {
           [[ -n ''${_command_restore_noted-} ]] || return 0
