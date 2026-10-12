@@ -56,9 +56,16 @@ let
   # launches every fish as `fish --no-config --init-command 'source <this>'`:
   # under --no-config fish reads NO user-writable startup surface (config.fish,
   # conf.d, universal variables, user function autoload -- verified on fish
-  # 4.7.1), so this store file is the only startup code. It therefore builds
-  # the environment itself instead of trusting whatever the spawning chain
-  # left in it.
+  # 4.7.1), so this store file is the only startup code.
+  #
+  # A login shell builds the environment itself instead of trusting whatever
+  # the spawning chain left in it: Ghostty starts fish with --login, so every
+  # tab gets this environment, whatever `launchctl setenv` planted. Any other
+  # fish (a script, `fish -c`, the shell `nix shell` opens) keeps its
+  # parent's, as on any Unix: that parent chose it and already runs as the
+  # user. It builds one only when no shell above it did. The same rule holds
+  # for zsh (xdg.nix, /etc/zshenv). What loads code stays forced for every
+  # fish: --no-config, the completion path, the bash variable scrub.
   #
   # PATH is explicit, root-owned profiles only, per-user first. ~/.nix-profile
   # (nix's user-imperative profile) is deliberately ABSENT: the nix daemon
@@ -68,31 +75,38 @@ let
   # this machine it is a dangling symlink (no profile ever created), so
   # dropping it loses nothing.
   fishInit = pkgs.writeText "fish-init.fish" ''
-    set -gx PATH ${perUser}/bin /run/current-system/sw/bin /nix/var/nix/profiles/default/bin /usr/local/bin /usr/bin /bin /usr/sbin /sbin
+    if status is-login; or not set -q __NIX_DARWIN_SET_ENVIRONMENT_DONE
+        set -gx PATH ${perUser}/bin /run/current-system/sw/bin /nix/var/nix/profiles/default/bin /usr/local/bin /usr/bin /bin /usr/sbin /sbin
 
-    # Parity with nix-darwin's set-environment, minus every ~/.nix-profile
-    # entry (and minus the ~/.nix-defexpr/channels NIX_PATH prepend -- also
-    # user-writable, and unused with flakes).
-    # The editor: the first of nvim, vim, vi on the PATH above, as a full
-    # path (environment.nix, extraInit, does the same for zsh and bash), or
-    # unset when none is found: an inherited value never survives.
-    set -e EDITOR VISUAL
-    set -l editors (command -s nvim vim vi)
-    if set -q editors[1]
-        set -gx EDITOR $editors[1]
-        set -gx VISUAL $editors[1]
+        # Parity with nix-darwin's set-environment, minus every ~/.nix-profile
+        # entry (and minus the ~/.nix-defexpr/channels NIX_PATH prepend -- also
+        # user-writable, and unused with flakes).
+        # The editor: the first of nvim, vim, vi on the PATH above, as a full
+        # path (environment.nix, extraInit, does the same for zsh and bash), or
+        # unset when none is found: an inherited value never survives.
+        set -e EDITOR VISUAL
+        set -l editors (command -s nvim vim vi)
+        if set -q editors[1]
+            set -gx EDITOR $editors[1]
+            set -gx VISUAL $editors[1]
+        end
+        set -gx PAGER ${fishSq config.environment.variables.PAGER}
+        set -gx NIX_SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt
+        set -gx NIX_PATH "nixpkgs=flake:nixpkgs:/nix/var/nix/profiles/per-user/root/channels"
+        set -gx NIX_USER_PROFILE_DIR /nix/var/nix/profiles/per-user/${user}
+        set -gx NIX_PROFILES "/nix/var/nix/profiles/default /run/current-system/sw ${perUser}"
+        set -gx TERMINFO_DIRS ${perUser}/share/terminfo:/run/current-system/sw/share/terminfo:/nix/var/nix/profiles/default/share/terminfo:/usr/share/terminfo
+        set -gx XDG_CONFIG_DIRS ${perUser}/etc/xdg:/run/current-system/sw/etc/xdg:/nix/var/nix/profiles/default/etc/xdg
+        set -gx XDG_DATA_DIRS ${perUser}/share:/run/current-system/sw/share:/nix/var/nix/profiles/default/share
+
+        ${xdgLines}
+        ${gitLines}
+
+        # The mark that a shell above built the environment, which keeps
+        # child fish, zsh and bash on it (their /etc/zshenv and /etc/bashrc
+        # check it too) instead of building it again.
+        set -gx __NIX_DARWIN_SET_ENVIRONMENT_DONE 1
     end
-    set -gx PAGER ${fishSq config.environment.variables.PAGER}
-    set -gx NIX_SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt
-    set -gx NIX_PATH "nixpkgs=flake:nixpkgs:/nix/var/nix/profiles/per-user/root/channels"
-    set -gx NIX_USER_PROFILE_DIR /nix/var/nix/profiles/per-user/${user}
-    set -gx NIX_PROFILES "/nix/var/nix/profiles/default /run/current-system/sw ${perUser}"
-    set -gx TERMINFO_DIRS ${perUser}/share/terminfo:/run/current-system/sw/share/terminfo:/nix/var/nix/profiles/default/share/terminfo:/usr/share/terminfo
-    set -gx XDG_CONFIG_DIRS ${perUser}/etc/xdg:/run/current-system/sw/etc/xdg:/nix/var/nix/profiles/default/etc/xdg
-    set -gx XDG_DATA_DIRS ${perUser}/share:/run/current-system/sw/share:/nix/var/nix/profiles/default/share
-
-    ${xdgLines}
-    ${gitLines}
 
     # Colours. --no-config skips universal variables, which is where fish
     # keeps its theme, so prompt and highlighting came up plain. These are
@@ -100,11 +114,6 @@ let
     # default.theme, fish 4.7.1), set as globals here. Not `fish_config theme
     # choose`: that looks under ~/.config/fish/themes before the store.
     ${themeLines}
-
-    # Child zsh/bash source /etc/zshenv and /etc/bashrc, whose set-environment
-    # call is guarded by this flag. Setting it keeps children on THIS PATH
-    # instead of letting set-environment re-prepend ~/.nix-profile/bin.
-    set -gx __NIX_DARWIN_SET_ENVIRONMENT_DONE 1
 
     source ${./fish/normalize-pwd-case.fish}
 
