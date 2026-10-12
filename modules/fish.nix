@@ -78,6 +78,14 @@ let
     if status is-login; or not set -q __NIX_DARWIN_SET_ENVIRONMENT_DONE
         set -gx PATH ${perUser}/bin /run/current-system/sw/bin /nix/var/nix/profiles/default/bin /usr/local/bin /usr/bin /bin /usr/sbin /sbin
 
+        # The shell programs open for you (`nix shell`, vim's :shell, tmux):
+        # this fish, by the shim's path, since the real fish would read
+        # ~/.config/fish. The account's login shell stays /bin/zsh, so
+        # Terminal.app, ssh and `sudo -i` keep zsh. Claude Code runs its Bash
+        # commands in the first zsh on PATH when SHELL is neither bash nor zsh
+        # (2.1.296, measured: /run/current-system/sw/bin/zsh).
+        set -gx SHELL ${perUser}/bin/fish
+
         # Parity with nix-darwin's set-environment, minus every ~/.nix-profile
         # entry (and minus the ~/.nix-defexpr/channels NIX_PATH prepend -- also
         # user-writable, and unused with flakes).
