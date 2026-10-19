@@ -294,7 +294,7 @@ claude_prompt_word() {
 # Resolve the program and fill approve_words and run_words: the noted words,
 # or for claude the Claude rule. Fails with `why` set.
 prepare() {
-  path=$(type -P -- "${words[0]}") || { why="${words[0]} is not on PATH"; return 1; }
+  path=$(type -P -- "${words[0]}") || { why="not on PATH: ${words[0]}"; return 1; }
   if [[ "${words[0]##*/}" == claude ]]; then
     claude_words || { why="no Claude session with messages to resume here"; return 1; }
   else
@@ -325,7 +325,7 @@ show_command() {
   if [[ "${words[0]##*/}" == claude ]]; then
     claude_prompt_word
     [[ -z "$prompt_word" ]] \
-      || printf '  %ssends %s to the session again as a prompt%s\n' "$C_ATTN" "$prompt_word" "$C_OFF" >&2
+      || printf '  %ssends this prompt to the session again: %s%s\n' "$C_ATTN" "$prompt_word" "$C_OFF" >&2
   fi
 }
 
@@ -491,6 +491,13 @@ line_for_shell() {
   printf '%s\n' "${run_words[*]}"
 }
 
+# The rows a restore screen shows under its first sentence: a folder or a
+# name is a value whose length this program does not choose, so each ends a
+# labeled row of its own and no sentence or question holds one.
+row() { # <label> <value>
+  printf '%s%-9s%s %s\n' "$C_B" "$1:" "$C_OFF" "$2" >&2
+}
+
 # Shell start: silent unless this surface holds a note of a cut-off command.
 restore() {
   [[ "$surface" =~ $uuid_re && -f "$record" ]] || exit 0
@@ -505,30 +512,40 @@ restore() {
 
   # Elsewhere: say where it ran and keep the note.
   if ! in_noted_folder; then
-    printf '%s%s was running in this tab in %s when Ghostty closed.\n' \
-      "$C_DIM" "$name" "$(tilde "$cwd")" >&2
-    printf 'This shell started in %s, so it does not start here. To start it there:%s\n\n' \
-      "$(tilde "$(pwd)")" "$C_OFF" >&2
+    printf '%sThis tab was running a command when Ghostty closed.%s\n' "$C_DIM" "$C_OFF" >&2
+    row command "$name"
+    row 'ran in' "$(tilde "$cwd")"
+    row here "$(tilde "$(pwd)")"
+    printf '%sIt starts only in the folder it ran in. To start it there:%s\n\n' "$C_DIM" "$C_OFF" >&2
     printf '  %scd%s %s\n  %scommand-restore%s\n\n' "$C_KEY" "$C_OFF" \
       "$(LC_ALL=C tr -d '[:cntrl:]' <<<"$cwd")" "$C_KEY" "$C_OFF" >&2
     exit 0
   fi
   if ! prepare; then
     rm -f -- "$record"
-    printf '%s%s was running in this tab when Ghostty closed: %s.%s\n' \
-      "$C_DIM" "$name" "$why" "$C_OFF" >&2
+    printf '%sThis tab was running a command when Ghostty closed. It does not start:%s\n' \
+      "$C_DIM" "$C_OFF" >&2
+    row command "$name"
+    row reason "$why"
     exit 0
   fi
 
   if is_approved && root_owned_path "$path"; then
-    printf '%s%s was running in this tab when Ghostty closed. Starting %s.%s\n\n' \
-      "$C_DIM" "$name" "$name" "$C_OFF" >&2
+    printf '%sThis tab was running a command when Ghostty closed. Starting it again.%s\n' \
+      "$C_DIM" "$C_OFF" >&2
+    row folder "$(tilde "$cwd")"
+    printf '\n' >&2
     show_command
     printf '\n' >&2
     start restore
   fi
 
-  printf '%s%s was running in this tab when Ghostty closed.%s\n\n' "$C_DIM" "$name" "$C_OFF" >&2
+  # The question names the command line with a noun ("the line above") and
+  # holds no value: the folder it runs in, which an approval would cover,
+  # is the row above the command line.
+  printf '%sThis tab was running a command when Ghostty closed.%s\n' "$C_DIM" "$C_OFF" >&2
+  row folder "$(tilde "$cwd")"
+  printf '\n' >&2
   show_command
   local gate
   printf -v gate '%srun the line above? [%sy%s%s/%sN%s%s]%s%s · %se%s%s edit · %sa%s%s always%s ' \
@@ -555,7 +572,7 @@ restore() {
         ;;
       ''|n|no)
         rm -f -- "$record"
-        printf '%saborted; %s not started%s\n' "$C_ATTN" "$name" "$C_OFF" >&2
+        printf '%saborted; the command did not start%s\n' "$C_ATTN" "$C_OFF" >&2
         exit 2
         ;;
       a)
@@ -567,15 +584,19 @@ restore() {
         # say where the session comes from instead.
         local resumes=''
         [[ "$name" == claude ]] && resumes=", resuming the tab's own session"
-        printf 'approve: start %s in %s without asking after a Ghostty quit%s\n' \
-          "${line#*$'\t'}" "${line%%$'\t'*}" "$resumes" >&2
-        printf '%ssudo asks next; it adds that line to %s%s\n' \
-          "$C_DIM" "$approved_file" "$C_OFF" >&2
+        printf 'An approval starts this command in this folder without asking after a\n' >&2
+        printf 'Ghostty quit%s. sudo asks next, then adds it to the list.\n' "$resumes" >&2
+        row command "${line#*$'\t'}"
+        row folder "${line%%$'\t'*}"
+        row list "$approved_file"
         if sudo -- "$0" approve "$cwd" "${approve_words[@]}"; then
           start restore
         fi
-        # Back to the same gate, printed again so the answer has its keys.
-        printf '%snot approved; the line above did not run%s\n%s' "$C_ATTN" "$C_OFF" "$gate" >&2
+        # Back to the same gate, under the command line again, so "the line
+        # above" names it and the answer has its keys.
+        printf '%snot approved; the command did not start%s\n\n' "$C_ATTN" "$C_OFF" >&2
+        show_command
+        printf '\n%s' "$gate" >&2
         ;;
       *)
         # The gate line follows again, without its blank line, so the next
