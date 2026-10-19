@@ -322,11 +322,17 @@ show_command() {
     if [[ "$w" == -* ]]; then line+=" ${C_KEY}${w}${C_OFF}"; else line+=" $w"; fi
   done
   printf '%s\n' "$line" >&2
-  if [[ "${words[0]##*/}" == claude ]]; then
-    claude_prompt_word
-    [[ -z "$prompt_word" ]] \
-      || printf '  %ssends this prompt to the session again: %s%s\n' "$C_ATTN" "$prompt_word" "$C_OFF" >&2
-  fi
+}
+
+# The warning a claude line that resends a prompt gets, the prompt last.
+# Printed above the command line: a question right under its line says
+# "the line above", so nothing but the gate's blank line stands between.
+show_warning() {
+  [[ "${words[0]##*/}" == claude ]] || return 0
+  claude_prompt_word
+  [[ -z "$prompt_word" ]] \
+    || printf '%sthe command sends this prompt to the session again: %s%s\n' \
+         "$C_ATTN" "$prompt_word" "$C_OFF" >&2
 }
 
 # Tell Ghostty which folder this surface is in (OSC 7, the shape Ghostty's
@@ -430,7 +436,7 @@ revoke() {
   approval_line "$@" || fail "needs an absolute folder, then plain words"
   if ! in_list "$approved_file" "$line"; then
     in_list "$declared_file" "$line" \
-      && fail "declared in $declared_file: remove it from nix-config, then deploy"
+      && fail "declared by nix-config (remove it there, then deploy): $declared_file"
     fail "not approved: $(shown "$line")"
   fi
   tmp=$(mktemp "$approved_dir/.${approved_file##*/}.XXXXXX") || fail "cannot write in $approved_dir"
@@ -438,7 +444,7 @@ revoke() {
      && chmod 644 "$tmp" && mv -f -- "$tmp" "$approved_file"; then
     printf '%s✓%s revoked: %s\n' "$C_OK" "$C_OFF" "$(shown "$line")" >&2
     in_list "$declared_file" "$line" \
-      && printf '%sstill approved: %s declares it%s\n' "$C_ATTN" "$declared_file" "$C_OFF" >&2
+      && printf '%sstill approved, declared in: %s%s\n' "$C_ATTN" "$declared_file" "$C_OFF" >&2
     return 0
   fi
   rm -f -- "$tmp"
@@ -473,8 +479,9 @@ list_approved() {
 start_by_hand() {
   need_surface
   read_note || fail "no command noted for this tab or split"
-  in_noted_folder || fail "it ran in $(tilde "$cwd"): cd there, then run command-restore"
+  in_noted_folder || fail "it ran in another folder (cd there, then run command-restore): $(tilde "$cwd")"
   prepare || fail "$why"
+  show_warning
   show_command
   start
 }
@@ -485,17 +492,28 @@ start_by_hand() {
 line_for_shell() {
   need_surface
   read_note || fail "no command noted for this tab or split"
-  in_noted_folder || fail "it ran in $(tilde "$cwd")"
+  in_noted_folder || fail "it ran in another folder: $(tilde "$cwd")"
   prepare || fail "$why"
   rm -f -- "$record"
   printf '%s\n' "${run_words[*]}"
 }
 
-# The rows a restore screen shows under its first sentence: a folder or a
-# name is a value whose length this program does not choose, so each ends a
-# labeled row of its own and no sentence or question holds one.
+# A row on a restore screen: a folder or a file is a value whose length this
+# program does not choose, so each ends a labeled row of its own and no
+# sentence or question holds one. One gutter for every screen, the widest
+# label (folder:) and two spaces.
 row() { # <label> <value>
-  printf '%s%-9s%s %s\n' "$C_B" "$1:" "$C_OFF" "$2" >&2
+  printf '%s%-8s%s %s\n' "$C_B" "$1:" "$C_OFF" "$2" >&2
+}
+
+# What the question decides about, in the order the question block reads:
+# the folder (which an approval would cover too) on its row, the warning
+# about the line, then the command line itself, the question's own row.
+ask_rows() {
+  row folder "$(tilde "$cwd")"
+  show_warning
+  printf '\n' >&2
+  show_command
 }
 
 # Shell start: silent unless this surface holds a note of a cut-off command.
@@ -510,43 +528,39 @@ restore() {
   [[ -t 0 && -t 2 ]] || exit 0              # off-tty there is nobody to ask
   local name=${words[0]##*/}
 
-  # Elsewhere: say where it ran and keep the note.
+  # Elsewhere: say where it ran and keep the note. Nothing starts, so no
+  # rows: the command ends the first sentence, and the suggestion's cd line
+  # names the folder it ran in.
   if ! in_noted_folder; then
-    printf '%sThis tab was running a command when Ghostty closed.%s\n' "$C_DIM" "$C_OFF" >&2
-    row command "$name"
-    row 'ran in' "$(tilde "$cwd")"
-    row here "$(tilde "$(pwd)")"
+    printf '%sThis tab was running a command when Ghostty closed: %s%s\n' "$C_DIM" "$name" "$C_OFF" >&2
     printf '%sIt starts only in the folder it ran in. To start it there:%s\n\n' "$C_DIM" "$C_OFF" >&2
     printf '  %scd%s %s\n  %scommand-restore%s\n\n' "$C_KEY" "$C_OFF" \
       "$(LC_ALL=C tr -d '[:cntrl:]' <<<"$cwd")" "$C_KEY" "$C_OFF" >&2
     exit 0
   fi
+  # It cannot start: no rows, the reason on its own line, its value last.
   if ! prepare; then
     rm -f -- "$record"
     printf '%sThis tab was running a command when Ghostty closed. It does not start:%s\n' \
       "$C_DIM" "$C_OFF" >&2
-    row command "$name"
-    row reason "$why"
+    printf '%s%s%s\n' "$C_DIM" "$why" "$C_OFF" >&2
     exit 0
   fi
 
+  # The approval answered: the rows stand as the record of what starts.
   if is_approved && root_owned_path "$path"; then
     printf '%sThis tab was running a command when Ghostty closed. Starting it again.%s\n' \
       "$C_DIM" "$C_OFF" >&2
-    row folder "$(tilde "$cwd")"
-    printf '\n' >&2
-    show_command
+    ask_rows
     printf '\n' >&2
     start restore
   fi
 
   # The question names the command line with a noun ("the line above") and
-  # holds no value: the folder it runs in, which an approval would cover,
-  # is the row above the command line.
+  # holds no value: the line is its row, right above it but for the gate's
+  # blank line, and the folder it runs in stands above the line.
   printf '%sThis tab was running a command when Ghostty closed.%s\n' "$C_DIM" "$C_OFF" >&2
-  row folder "$(tilde "$cwd")"
-  printf '\n' >&2
-  show_command
+  ask_rows
   local gate
   printf -v gate '%srun the line above? [%sy%s%s/%sN%s%s]%s%s · %se%s%s edit · %sa%s%s always%s ' \
     "$C_B" "$C_KEY" "$C_OFF" "$C_B" "$C_KEY" "$C_OFF" "$C_B" "$C_OFF" \
@@ -577,7 +591,8 @@ restore() {
         ;;
       a)
         # sudo shows only the store path and its arguments, so say first
-        # what the approval does and where it goes.
+        # what the approval does and where it goes. The command and the
+        # folder are the rows just above; only the file is new here.
         local line
         approval_line "$cwd" "${approve_words[@]}" || fail "the note is not an approvable line"
         # The session flags are not in the approval (the Claude rule), so
@@ -585,17 +600,16 @@ restore() {
         local resumes=''
         [[ "$name" == claude ]] && resumes=", resuming the tab's own session"
         printf 'An approval starts this command in this folder without asking after a\n' >&2
-        printf 'Ghostty quit%s. sudo asks next, then adds it to the list.\n' "$resumes" >&2
-        row command "${line#*$'\t'}"
-        row folder "${line%%$'\t'*}"
-        row list "$approved_file"
+        printf 'Ghostty quit%s. sudo asks next, then adds the approval to the file.\n' "$resumes" >&2
+        row file "$approved_file"
         if sudo -- "$0" approve "$cwd" "${approve_words[@]}"; then
           start restore
         fi
-        # Back to the same gate, under the command line again, so "the line
-        # above" names it and the answer has its keys.
+        # Back to the same gate. sudo's own screen stood between, so the
+        # rows come again, the command line last, so "the line above" names
+        # it and the answer has its keys.
         printf '%snot approved; the command did not start%s\n\n' "$C_ATTN" "$C_OFF" >&2
-        show_command
+        ask_rows
         printf '\n%s' "$gate" >&2
         ;;
       *)
