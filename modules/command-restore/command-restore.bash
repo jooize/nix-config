@@ -211,9 +211,14 @@ approval_line() {
   line="$folder"$'\t'"$*"
 }
 
-# An approval line as a person reads it: the words, then the folder.
-shown() {
-  printf '%s  %sin%s %s' "${1#*$'\t'}" "$C_DIM" "$C_OFF" "${1%%$'\t'*}"
+# An approval line as a person reads it, under the line that says what
+# happened to it: the command and the folder are both values whose length
+# this program does not choose, so each ends a labeled row of its own,
+# indented under that line. The gutter is the widest label (command:) and
+# two spaces. Prints on stdout; a caller writing to stderr redirects.
+approval_rows() { # <approval line>
+  printf '  %s%-9s%s %s\n' "$C_B" command: "$C_OFF" "${1#*$'\t'}"
+  printf '  %s%-9s%s %s\n' "$C_B" folder: "$C_OFF" "${1%%$'\t'*}"
 }
 
 is_approved() {
@@ -410,7 +415,8 @@ approve() {
   local line tmp
   approval_line "$@" || fail "needs an absolute folder, then plain words: nothing approved"
   if in_list "$approved_file" "$line" || in_list "$declared_file" "$line"; then
-    printf '%salready approved:%s %s\n' "$C_DIM" "$C_OFF" "$(shown "$line")" >&2
+    printf '%salready approved%s\n' "$C_DIM" "$C_OFF" >&2
+    approval_rows "$line" >&2
     return 0
   fi
   # One level at a time, so each folder gets 755 whatever umask sudo passed on.
@@ -423,7 +429,8 @@ approve() {
   # after it is a file name. $tmp is absolute, so it never reads as an option.
   if { [[ -f "$approved_file" ]] && cat -- "$approved_file"; printf '%s\n' "$line"; } >"$tmp" \
      && chmod 644 "$tmp" && mv -f -- "$tmp" "$approved_file"; then
-    printf '%s✓%s approved: %s\n' "$C_OK" "$C_OFF" "$(shown "$line")" >&2
+    printf '%s✓%s approved\n' "$C_OK" "$C_OFF" >&2
+    approval_rows "$line" >&2
     return 0
   fi
   rm -f -- "$tmp"
@@ -437,12 +444,15 @@ revoke() {
   if ! in_list "$approved_file" "$line"; then
     in_list "$declared_file" "$line" \
       && fail "declared by nix-config (remove it there, then deploy): $declared_file"
-    fail "not approved: $(shown "$line")"
+    printf 'command-restore: not approved\n' >&2
+    approval_rows "$line" >&2
+    exit 1
   fi
   tmp=$(mktemp "$approved_dir/.${approved_file##*/}.XXXXXX") || fail "cannot write in $approved_dir"
   if { grep -vxF -- "$line" "$approved_file" || true; } >"$tmp" \
      && chmod 644 "$tmp" && mv -f -- "$tmp" "$approved_file"; then
-    printf '%s✓%s revoked: %s\n' "$C_OK" "$C_OFF" "$(shown "$line")" >&2
+    printf '%s✓%s revoked\n' "$C_OK" "$C_OFF" >&2
+    approval_rows "$line" >&2
     in_list "$declared_file" "$line" \
       && printf '%sstill approved, declared in: %s%s\n' "$C_ATTN" "$declared_file" "$C_OFF" >&2
     return 0
@@ -451,11 +461,13 @@ revoke() {
   fail "cannot write $approved_file"
 }
 
-# Each list under its path, one approval per line as a person reads it. The
-# files themselves are the format to copy; this is only the view.
+# Each list under its path, each approval as its rows. The files themselves
+# are the format to copy; this is only the view. A line with no folder
+# keeps the command row, and what that means stands under it in the value
+# column, since nothing may follow the value on its row.
 list_approved() {
   local f line n
-  [[ -t 1 ]] || local C_DIM='' C_ATTN='' C_OFF=''
+  [[ -t 1 ]] || local C_B='' C_DIM='' C_ATTN='' C_OFF=''
   for f in "$approved_file" "$declared_file"; do
     printf '%s%s%s\n' "$C_DIM" "$f" "$C_OFF"
     n=0
@@ -464,10 +476,11 @@ list_approved() {
         [[ -n "$line" ]] || continue
         n=$((n + 1))
         if [[ "$line" == *$'\t'* ]]; then
-          printf '  %s\n' "$(shown "$line")"
+          approval_rows "$line"
         else
-          printf '  %s  %s(no folder: never matches)%s\n' \
-            "$(LC_ALL=C tr -d '[:cntrl:]' <<<"$line")" "$C_ATTN" "$C_OFF"
+          printf '  %s%-9s%s %s\n' "$C_B" command: "$C_OFF" \
+            "$(LC_ALL=C tr -d '[:cntrl:]' <<<"$line")"
+          printf '  %-9s %sno folder, so it never matches%s\n' '' "$C_ATTN" "$C_OFF"
         fi
       done <"$f"
     fi
