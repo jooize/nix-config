@@ -42,10 +42,13 @@ in
   #
   # The same file drops the names in bash-startup-vars.nix, so no bash started
   # below this shell obeys them. zsh itself already drops BASH_FUNC_* entries
-  # (not valid names to it), so only the plain names need unsetting.
+  # (not valid names to it), so only the plain names need unsetting. It drops
+  # the names in nix-startup-vars.nix too, so nix in this shell reads only
+  # root-chosen settings and registries.
   programs.zsh.shellInit = ''
     export ZDOTDIR=/etc/zdotdir
     unset ${lib.concatStringsSep " " (import ./bash-startup-vars.nix).names}
+    unset ${lib.concatStringsSep " " (import ./nix-startup-vars.nix).names}
   '';
 
   # /etc/zshenv itself, in place of nix-darwin's. Like the fish init, it

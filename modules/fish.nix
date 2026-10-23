@@ -123,6 +123,10 @@ let
     # choose`: that looks under ~/.config/fish/themes before the store.
     ${themeLines}
 
+    # Nix reads only root-chosen settings and registries, in every fish: the
+    # names in nix-startup-vars.nix are dropped whatever the parent set.
+    set -e ${lib.concatStringsSep " " (import ./nix-startup-vars.nix).names}
+
     source ${./fish/normalize-pwd-case.fish}
 
     # Completions. --no-config leaves fish_complete_path empty, so nothing
