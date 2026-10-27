@@ -29,6 +29,13 @@ let
     manifest = releaseFile "manifest.txt" release.manifestHash;
   };
   swap = pkgs.writeCBin "ghostty-swap" (builtins.readFile ./ghostty/swap.c);
+
+  # The terminal's description (xterm-ghostty, ghostty) from the same app,
+  # for the system profile's share/terminfo.
+  terminfo = pkgs.runCommand "ghostty-terminfo-${release.version}" { } ''
+    mkdir -p "$out/share"
+    cp -R ${app}/Applications/Ghostty.app/Contents/Resources/terminfo "$out/share/terminfo"
+  '';
 in
 {
   assertions = [{
@@ -112,6 +119,14 @@ in
       echo "installed Ghostty ${release.version}" >&2
     )
   '';
+
+  # TERM=xterm-ghostty is in no OS terminfo database, and the app sets
+  # TERMINFO to its own bundle, which a clean environment drops: a root
+  # pager run under env -i (pinned, locked) or anything else that resets the
+  # environment finds no entry and falls back to a dumb terminal. The system
+  # profile is root-owned and on every TERMINFO_DIRS this system sets, so
+  # the entry lives there.
+  environment.systemPackages = [ terminfo ];
 
   # The system configuration file of our patched Ghostty (jooize/ghostty,
   # branch jooize, patches system-config and protected-config). It is
